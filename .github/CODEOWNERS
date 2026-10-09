@@ -1,0 +1,51 @@
+# Code ownership: Bir dosyadaki değişiklik, o dosyanın sahibinden onay almadan
+# main dalına birleştirilemez (ruleset'te "Require review from Code Owners" açık olmalı).
+#
+# Organization: iu-dev-hub
+# Instructor:   @imyo-dev-hub  (GitHub kullanıcı adınız farklıysa bu dosyadaki
+#               tüm @imyo-dev-hub ifadelerini kendi kullanıcı adınızla değiştirin)
+#
+# ÖNEMLİ: Son eşleşen satır geçerlidir.
+# Modül klasörleri Sprint 1'de oluşturulacaktır; sahiplikleri şimdiden tanımlıdır.
+# Burada listelenmeyen dosyalar için kod sahibi onayı gerekmez; ruleset'teki
+# "en az 1 onay" yeterlidir.
+
+# Module ownership (folders created in Sprint 1)
+/app/accounts/                     @iu-dev-hub/team-accounts
+/app/events/                       @iu-dev-hub/team-events
+/app/tickets/                      @iu-dev-hub/team-tickets
+/app/payments/                     @iu-dev-hub/team-payments
+/app/templates/accounts/           @iu-dev-hub/team-accounts
+/app/templates/events/             @iu-dev-hub/team-events
+/app/templates/tickets/            @iu-dev-hub/team-tickets
+/app/templates/payments/           @iu-dev-hub/team-payments
+
+# Shared code, schema and layout: affects all teams
+/app/__init__.py                   @iu-dev-hub/scrum-masters
+/app/core/                         @iu-dev-hub/scrum-masters
+/app/templates/base.html           @iu-dev-hub/scrum-masters
+/app/static/                       @iu-dev-hub/scrum-masters
+
+# End-to-end tests: QA approval required
+/tests/e2e/                        @iu-dev-hub/qa
+
+# Team agreements (written by students)
+/docs/                             @iu-dev-hub/product-owners
+/docs/definition-of-ready-and-done.md  @iu-dev-hub/scrum-masters
+/docs/interface-contract.md        @iu-dev-hub/scrum-masters
+
+# Course guides and onboarding (instructor)
+/docs/guides/                      @imyo-dev-hub
+/docs/getting-started.md           @imyo-dev-hub
+/CONTRIBUTING.md                   @imyo-dev-hub
+/LICENSE                           @imyo-dev-hub
+
+# Customer documents (instructor = customer)
+/docs/product-vision.md            @imyo-dev-hub
+/docs/business-rules.md            @imyo-dev-hub
+
+# Roles, CI, repository settings and dependencies: instructor only
+/ROLES.md                          @imyo-dev-hub
+/.github/                          @imyo-dev-hub
+/requirements.txt                  @imyo-dev-hub
+/pyproject.toml                    @imyo-dev-hub

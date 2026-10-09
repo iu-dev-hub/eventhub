@@ -1,0 +1,7 @@
+# User stories, tasks and bug reports live in Taiga.
+# GitHub issues are used only for attachments of Taiga bug reports.
+blank_issues_enabled: false
+contact_links:
+  - name: User story, task or bug report
+    url: https://tree.taiga.io/
+    about: Bunlar Taiga'daki "EventHub" projesinde yazılır.

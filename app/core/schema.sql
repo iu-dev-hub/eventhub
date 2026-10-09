@@ -1,0 +1,20 @@
+-- EventHub: database schema
+--
+-- Bu dosya Sprint 2'de ekipler tarafından doldurulacaktır.
+--
+-- Kurallar:
+--   - Her ekip kendi tablolarını yazar; tabloların sahibi yorum satırında belirtilir.
+--   - Tablo ve sütun adları İngilizce, snake_case; tablo adları çoğul (ör. tickets).
+--   - Başka ekibin tablosuna referans (FOREIGN KEY) veren tablolar, o ekiple
+--     Scrum of Scrums'ta konuşularak tasarlanır ve docs/interface-contract.md'ye yazılır.
+--   - Bu dosya app/core/ altında olduğu için değişiklikler Scrum Master'ların onayını gerektirir.
+--
+-- Örnek biçim:
+--
+--   -- Owner: team-events
+--   DROP TABLE IF EXISTS venues;
+--   CREATE TABLE venues (
+--       id        INTEGER PRIMARY KEY AUTOINCREMENT,
+--       name      TEXT    NOT NULL UNIQUE,
+--       capacity  INTEGER NOT NULL CHECK (capacity > 0)
+--   );

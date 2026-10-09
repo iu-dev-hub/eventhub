@@ -1,0 +1,10 @@
+# Uygulama
+flask>=3.0,<4
+
+# Test
+pytest>=8.0
+pytest-cov>=5.0
+pytest-playwright>=0.5
+
+# Statik analiz
+ruff>=0.6

@@ -1,0 +1,30 @@
+name: Bug attachments (for a Taiga issue)
+description: >-
+  Taiga'daki bir hata kaydının ekran görüntüsü, log ve dosyaları için.
+  Hata raporunun kendisi Taiga'da yazılır; Taiga'nın depolama alanı çok küçük olduğu için
+  dosyalar burada tutulur.
+title: "[TG-] Bug attachments"
+labels: ["bug-attachments"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Hata raporunu Taiga'da yazın.** Bu kayıt yalnızca dosyalar içindir.
+        Kaydı oluşturduktan sonra bağlantısını Taiga'daki hata kaydına yapıştırın.
+        Başlıktaki `TG-` kısmına Taiga'daki numarayı yazın (ör. `[TG-57] Bug attachments`).
+  - type: input
+    id: taiga-link
+    attributes:
+      label: Taiga issue link
+      placeholder: https://tree.taiga.io/project/.../issue/57
+    validations:
+      required: true
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Attachments
+      description: >-
+        Ekran görüntülerini buraya sürükleyip bırakın. Log ve hata mesajlarını
+        kod bloğu içinde yapıştırın.
+    validations:
+      required: true

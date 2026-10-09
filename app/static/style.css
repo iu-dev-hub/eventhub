@@ -1,0 +1,14 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, sans-serif; color: #222; background: #f7f7f5; line-height: 1.5; }
+header { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between;
+         padding: 0.8rem 1.5rem; background: #2b3a67; }
+header a { color: #fff; text-decoration: none; }
+.logo { font-weight: 700; }
+nav { display: flex; gap: 1.2rem; flex-wrap: wrap; }
+nav a:hover { text-decoration: underline; }
+main { max-width: 960px; margin: 2rem auto; padding: 0 1.5rem; }
+footer { text-align: center; color: #777; font-size: 0.85rem; padding: 2rem; }
+.info { background: #eef1f8; border-left: 4px solid #2b3a67; padding: 0.6rem 1rem; }
+.message { padding: 0.6rem 1rem; border-radius: 4px; }
+.message.error { background: #fde8e8; color: #9b1c1c; }
+.message.success { background: #e6f4ea; color: #1e6b34; }
