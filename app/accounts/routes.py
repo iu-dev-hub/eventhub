@@ -13,7 +13,12 @@ bp = Blueprint("accounts", __name__, url_prefix="/accounts")
 @bp.route("/", methods=["GET"])
 def index():
     """Accounts module index endpoint."""
-    if request.accept_mimetypes.accept_html and not request.accept_mimetypes.accept_json:
+    if (
+        request.accept_mimetypes.best_match(
+            ["text/html", "application/json"], default="application/json"
+        )
+        == "text/html"
+    ):
         return render_template("accounts/index.html")
     return jsonify({
         "module": "accounts",
