@@ -4,6 +4,7 @@ This module contains server-side business rules and database queries
 for user accounts, registration, and secure password hashing.
 """
 
+import re
 from typing import Any, Dict
 
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -13,10 +14,65 @@ from app.core.db import get_db
 VALID_ROLES = ("participant", "organizer", "admin")
 DEFAULT_ROLE = "participant"
 
+EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 20
+
 
 class DuplicateEmailError(ValueError):
     """Raised when attempting to register an already existing email (BR-1.2)."""
     pass
+
+
+def validate_email_format(email: str) -> None:
+    """Validates email address format (BR-1.2, TG-9).
+
+    Checks standard email structure (RFC 5322 pattern), ensuring local-part,
+    '@' symbol, domain with valid extension, and no consecutive dots.
+
+    Args:
+        email: Email address string to validate.
+
+    Raises:
+        ValueError: If email is empty or has an invalid format.
+    """
+    if not email or not isinstance(email, str) or not email.strip():
+        raise ValueError("E-posta adresi boş bırakılamaz.")
+    cleaned = email.strip()
+    if not EMAIL_REGEX.match(cleaned) or ".." in cleaned or cleaned.endswith("."):
+        raise ValueError("Geçersiz e-posta formatı.")
+    domain = cleaned.split("@")[1]
+    labels = domain.split(".")
+    if "." not in domain or any(label.startswith("-") or label.endswith("-") for label in labels):
+        raise ValueError("Geçersiz e-posta formatı.")
+    tld = labels[-1]
+    if len(tld) < 2:
+        raise ValueError("Geçersiz e-posta formatı.")
+
+
+def validate_password_strength(password: str) -> None:
+    """Validates password strength according to business rules (BR-1.3, TG-9).
+
+    Requirements:
+        - Must be between 8 and 20 characters in length.
+        - Must contain at least one letter (a-z, A-Z).
+        - Must contain at least one digit (0-9).
+
+    Args:
+        password: The plaintext password string to validate.
+
+    Raises:
+        ValueError: If password is empty or does not satisfy complexity requirements.
+    """
+    if not password or not isinstance(password, str):
+        raise ValueError("Şifre boş bırakılamaz.")
+    if len(password) < MIN_PASSWORD_LENGTH or len(password) > MAX_PASSWORD_LENGTH:
+        raise ValueError(
+            f"Şifre {MIN_PASSWORD_LENGTH} ile {MAX_PASSWORD_LENGTH} karakter arasında olmalıdır."
+        )
+    if not any(c.isalpha() for c in password) or not any(c.isdigit() for c in password):
+        raise ValueError("Şifre en az bir harf ve en az bir rakam içermelidir.")
+
 
 
 def hash_password(password: str) -> str:
@@ -91,14 +147,20 @@ def register_user(email: str, password: str, role: str = DEFAULT_ROLE) -> Dict[s
         ValueError: If email or password is missing/invalid, or role is invalid.
         DuplicateEmailError: If the email address is already registered (409 Conflict).
     """
-    if not email or not email.strip():
+    if not email or not isinstance(email, str) or not email.strip():
         raise ValueError("E-posta adresi boş bırakılamaz.")
-    if not password:
+    if not password or not isinstance(password, str):
         raise ValueError("Şifre boş bırakılamaz.")
     if role not in VALID_ROLES:
         raise ValueError(f"Geçersiz hesap türü: {role}")
 
     cleaned_email = email.strip().lower()
+
+    # TG-9, BR-1.2: E-posta format kontrolü
+    validate_email_format(cleaned_email)
+
+    # TG-9, BR-1.3: Şifre karmaşıklık kuralları
+    validate_password_strength(password)
 
     # BR-1.2: Bir e-posta adresiyle yalnızca bir hesap açılabilir.
     if is_email_registered(cleaned_email):

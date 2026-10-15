@@ -104,7 +104,7 @@ def test_register_missing_fields_returns_400(client):
 
 def test_password_not_stored_as_plaintext(client, app):
     """TG-10: Veritabanında gerçek parola asla düz metin olarak saklanmamalıdır."""
-    raw_password = "SuperSecretPlaintextPassword!99"
+    raw_password = "SuperSecretPass1"
     email = "security_check@example.com"
 
     response = client.post(
@@ -128,7 +128,7 @@ def test_password_not_stored_as_plaintext(client, app):
 
         # scrypt hash doğrulaması başarılı olmalı
         assert verify_password(raw_password, stored_hash) is True
-        assert verify_password("WrongPassword", stored_hash) is False
+        assert verify_password("WrongPassword1", stored_hash) is False
 
 
 def test_register_user_service_directly_handles_duplicate(app):
@@ -137,7 +137,7 @@ def test_register_user_service_directly_handles_duplicate(app):
         register_user("service_test@example.com", "Password123")
 
         with pytest.raises(DuplicateEmailError, match="Bu e-posta adresi zaten kayıtlı"):
-            register_user("service_test@example.com", "AnotherPassword")
+            register_user("service_test@example.com", "AnotherPassword456")
 
 
 def test_register_invalid_role_returns_400(client):
@@ -150,4 +150,93 @@ def test_register_invalid_role_returns_400(client):
     response = client.post("/accounts/register", json=payload)
     assert response.status_code == 400
     assert "Geçersiz hesap türü" in response.get_json()["error"]
+
+
+# ==============================================================================
+# TG-9, BR-1.2 & BR-1.3: HTTP Uç Noktası Validasyon Entegrasyon Testleri
+# ==============================================================================
+
+
+@pytest.mark.parametrize(
+    "bad_email",
+    [
+        "notanemail",
+        "@nodomain.com",
+        "user@nodomain",
+        "user@domain..com",
+        "user@.com",
+    ],
+)
+def test_register_invalid_email_format_returns_400(client, bad_email):
+    """TG-9, BR-1.2: Geçersiz e-posta formatı 400 Bad Request dönmelidir."""
+    payload = {
+        "email": bad_email,
+        "password": "ValidPassword123",
+    }
+    response = client.post("/accounts/register", json=payload)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert "Geçersiz e-posta formatı" in data["error"]
+
+
+def test_register_password_too_short_returns_400(client):
+    """TG-9, BR-1.3: 8 karakterden kısa parola 400 Bad Request dönmelidir."""
+    payload = {
+        "email": "shortpass@example.com",
+        "password": "Pass1",
+    }
+    response = client.post("/accounts/register", json=payload)
+    assert response.status_code == 400
+    assert "8 ile 20 karakter arasında" in response.get_json()["error"]
+
+
+def test_register_password_too_long_returns_400(client):
+    """TG-9, BR-1.3: 20 karakterden uzun parola 400 Bad Request dönmelidir."""
+    payload = {
+        "email": "longpass@example.com",
+        "password": "PasswordWithMoreThan20Chars1234",
+    }
+    response = client.post("/accounts/register", json=payload)
+    assert response.status_code == 400
+    assert "8 ile 20 karakter arasında" in response.get_json()["error"]
+
+
+def test_register_password_missing_digit_returns_400(client):
+    """TG-9, BR-1.3: Rakam içermeyen parola 400 Bad Request dönmelidir."""
+    payload = {
+        "email": "nodigit@example.com",
+        "password": "PasswordWithoutDigit",
+    }
+    response = client.post("/accounts/register", json=payload)
+    assert response.status_code == 400
+    assert "en az bir harf ve en az bir rakam" in response.get_json()["error"]
+
+
+def test_register_password_missing_letter_returns_400(client):
+    """TG-9, BR-1.3: Harf içermeyen parola 400 Bad Request dönmelidir."""
+    payload = {
+        "email": "noletter@example.com",
+        "password": "1234567890123",
+    }
+    response = client.post("/accounts/register", json=payload)
+    assert response.status_code == 400
+    assert "en az bir harf ve en az bir rakam" in response.get_json()["error"]
+
+
+def test_register_boundary_passwords_succeed(client):
+    """TG-9, BR-1.3: 8 ve 20 karakter tam sınır parolalar başarıyla 201 dönmelidir."""
+    # 8 karakter tam alt sınır
+    res8 = client.post(
+        "/accounts/register",
+        json={"email": "bound8@example.com", "password": "Password1"},
+    )
+    assert res8.status_code == 201
+
+    # 20 karakter tam üst sınır
+    res20 = client.post(
+        "/accounts/register",
+        json={"email": "bound20@example.com", "password": "A123456789012345678b"},
+    )
+    assert res20.status_code == 201
+
 
