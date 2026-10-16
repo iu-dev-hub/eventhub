@@ -9,12 +9,15 @@
 --     Scrum of Scrums'ta konuşularak tasarlanır ve docs/interface-contract.md'ye yazılır.
 --   - Bu dosya app/core/ altında olduğu için değişiklikler Scrum Master'ların onayını gerektirir.
 --
--- Örnek biçim:
---
---   -- Owner: team-events
---   DROP TABLE IF EXISTS venues;
---   CREATE TABLE venues (
---       id        INTEGER PRIMARY KEY AUTOINCREMENT,
---       name      TEXT    NOT NULL UNIQUE,
---       capacity  INTEGER NOT NULL CHECK (capacity > 0)
---   );
+-- Owner: team-accounts
+DROP TABLE IF EXISTS users;
+CREATE TABLE users (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    email         TEXT    NOT NULL UNIQUE,
+    password_hash TEXT    NOT NULL,
+    role          TEXT    NOT NULL DEFAULT 'participant',
+    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
