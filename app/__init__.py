@@ -42,4 +42,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         """Sistemin ayakta olup olmadığını gösterir (smoke test için)."""
         return jsonify(status="ok", version=VERSION)
 
+    from app.payments import bp as payments_bp
+    app.register_blueprint(payments_bp)
+
     return app
