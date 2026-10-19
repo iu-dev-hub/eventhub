@@ -13,11 +13,12 @@ aynı gün **GitHub rol takımları** ve **Taiga'daki proje rolleri** de güncel
 
 | Ekip | Product Owner | Scrum Master | Back | Front | Testçi |
 |---|---|---|---|---|---|
-| Team Accounts (Hesaplar) | @abdulselam-code | @@fatmasumeyye
-fatmasumeyye | @polat1443 | @yusufsanverdi | @ozdemirazad12@gmail.com |
-| Team Events (Etkinlikler ve Salonlar) | @ | @ | @ | @ | @ |
-| Team Tickets (Bilet ve Kontenjan) | @ | @ | @ | @ | @ |
-| Team Payments (Ödeme, İade ve Raporlar) | @ | @ | @ | @ | @ |
+| Team Accounts (Hesaplar) | @abdulselam-code | @fatmasumeyye | @polat1443 | @yusufsanverdi | @ozdemirazad12 |
+| Team Events (Etkinlikler ve Salonlar) | @Mikail82 | @ahmetykt | @EmreEmir-17 | @Emircn10 | @syersiz2 |
+| Team Tickets (Bilet ve Kontenjan) | @uldgahmet | @Bilalgunci | @Aleynaakduman | @beytullahkizilkaya | @sametdlck0 |
+| Team Payments (Ödeme, İade ve Raporlar) | @yunusemreturan16 | @hilalyigit7200 | @Misracan165 | @Merve4717 | @sayse5974 |
+| Team Mobile | @hknd1977 | @emre-ttnc | @emre-ttnc | @berkyz | @hknd1977 |
+
 
 **Baş Product Owner / Müşteri:** Dr. Öğr. Üyesi Hakan DUMAN
 
