@@ -13,7 +13,8 @@ aynı gün **GitHub rol takımları** ve **Taiga'daki proje rolleri** de güncel
 
 | Ekip | Product Owner | Scrum Master | Back | Front | Testçi |
 |---|---|---|---|---|---|
-| Team Accounts (Hesaplar) | @ | @ | @ | @ | @ |
+| Team Accounts (Hesaplar) | @abdulselam-code | @@fatmasumeyye
+fatmasumeyye | @polat1443 | @yusufsanverdi | @ozdemirazad12@gmail.com |
 | Team Events (Etkinlikler ve Salonlar) | @ | @ | @ | @ | @ |
 | Team Tickets (Bilet ve Kontenjan) | @ | @ | @ | @ | @ |
 | Team Payments (Ödeme, İade ve Raporlar) | @ | @ | @ | @ | @ |
