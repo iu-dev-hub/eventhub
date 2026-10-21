@@ -18,3 +18,13 @@
 --       name      TEXT    NOT NULL UNIQUE,
 --       capacity  INTEGER NOT NULL CHECK (capacity > 0)
 --   );
+
+-- Owner: team-tickets
+CREATE TABLE IF NOT EXISTS tickets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'reserved', -- reserved (beklemede), paid (aktif/ödendi), cancelled (iptal)
+    qr_code TEXT UNIQUE,
+    created_at TEXT NOT NULL
+);
