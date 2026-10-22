@@ -6,32 +6,32 @@ from app.events import services
 def index():
     return render_template("events/index.html")
 
-@bp.route("/create", methods=("GET", "POST"))
+@bp.route("/create", methods=["GET", "POST"])
 def create():
     if request.method == "POST":
+        # TG-21'den gelen tüm form verilerini alıyoruz
         title = request.form.get("title", "")
         category = request.form.get("category", "")
         venue = request.form.get("venue", "")
         start_time = request.form.get("start_time", "")
         end_time = request.form.get("end_time", "")
-        
-        try:
-            # Boş değer gelme ihtimaline karşı int dönüşümlerini güvenli yapıyoruz
-            capacity_str = request.form.get("capacity")
-            price_str = request.form.get("price")
-            
-            capacity = int(capacity_str) if capacity_str else None
-            price = int(price_str) if price_str else None
-            
-            # Backend doğrulaması yapılıyor (Madde 6)
-            services.validate_event_data(title, category, venue, start_time, end_time, capacity, price)
-            
-            # 8. Madde: Geçerli bilgiler girildiğinde gösterilecek özel başarı mesajı
-            flash("Etkinlik bilgileri doğrulandı. Henüz kaydedilmedi.", "success")
-        except ValueError as e:
-            # 7. ve 9. Maddelerdeki hata mesajları
-            flash(str(e), "error")
-            
-        return redirect(url_for("events.create"))
+        capacity = request.form.get("capacity", "")
+        price = request.form.get("price", "")
+
+        # TG-22'deki doğrulama servisine tüm verileri gönderiyoruz
+        is_valid, messages = services.validate_event_creation(
+            title, category, venue, start_time, end_time, capacity, price
+        )
+
+        # Doğrulama sonuçlarını (başarılı/hata) flash mesajı olarak basıyoruz
+        for message in messages:
+            flash_category = "success" if is_valid else "error"
+            flash(message, flash_category)
+
+        # Başarılıysa ana sayfaya, hatalıysa tekrar form sayfasına yönlendiriyoruz
+        if is_valid:
+            return redirect(url_for("events.index"))
+        else:
+            return redirect(url_for("events.create"))
 
     return render_template("events/create.html")
