@@ -1,0 +1,4 @@
+# Flet derleme çıktıları: depoya eklenmez
+build/
+*.apk
+*.aab

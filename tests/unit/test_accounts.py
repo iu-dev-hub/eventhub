@@ -6,6 +6,7 @@ Tests core business rules and scrypt hashing functions in isolation.
 import pytest
 
 from app.accounts.services import (
+    authenticate_user,
     hash_password,
     is_email_registered,
     register_user,
@@ -169,4 +170,297 @@ def test_validate_password_strength_empty(empty_password):
     """Boş şifre denemesi reddedilmelidir."""
     with pytest.raises(ValueError, match="Şifre boş bırakılamaz"):
         validate_password_strength(empty_password)
+
+
+# ==============================================================================
+# TG-50, PB-02: Kullanıcı Kimlik Doğrulama (authenticate_user) Birim Testleri
+# ==============================================================================
+
+
+def test_authenticate_user_success(app):
+    """TG-50: Doğru e-posta ve şifre ile kullanıcı başarıyla doğrulanmalıdır."""
+    with app.app_context():
+        created = register_user("testlogin@example.com", "Password123", role="participant")
+        auth_user = authenticate_user("testlogin@example.com", "Password123")
+
+        assert auth_user["id"] == created["id"]
+        assert auth_user["email"] == "testlogin@example.com"
+        assert auth_user["role"] == "participant"
+
+
+def test_authenticate_user_case_insensitive_email(app):
+    """TG-50: E-posta adresi büyük/küçük harf duyarsız doğrulanabilmelidir."""
+    with app.app_context():
+        register_user("caseuser@example.com", "Password123")
+        auth_user = authenticate_user("CaseUser@EXAMPLE.com", "Password123")
+        assert auth_user["email"] == "caseuser@example.com"
+
+
+def test_authenticate_user_wrong_password(app):
+    """TG-50: Yanlış parola girildiğinde ValueError fırlatılmalıdır."""
+    with app.app_context():
+        register_user("wrongpass@example.com", "Password123")
+        with pytest.raises(ValueError, match="Geçersiz e-posta veya şifre"):
+            authenticate_user("wrongpass@example.com", "WrongPassword1")
+
+
+def test_authenticate_user_nonexistent_email(app):
+    """TG-50: Kayıtlı olmayan e-posta ile giriş denendiğinde ValueError fırlatılmalıdır."""
+    with app.app_context():
+        with pytest.raises(ValueError, match="Geçersiz e-posta veya şifre"):
+            authenticate_user("nonexistent@example.com", "Password123")
+
+
+@pytest.mark.parametrize("bad_email", ["", "   ", None])
+def test_authenticate_user_empty_email_raises(bad_email):
+    """Boş e-posta ile giriş denendiğinde ValueError fırlatılmalıdır."""
+    with pytest.raises(ValueError, match="E-posta adresi boş bırakılamaz"):
+        authenticate_user(bad_email, "Password123")
+
+
+@pytest.mark.parametrize("bad_pass", ["", None])
+def test_authenticate_user_empty_password_raises(bad_pass):
+    """Boş parola ile giriş denendiğinde ValueError fırlatılmalıdır."""
+    with pytest.raises(ValueError, match="Şifre boş bırakılamaz"):
+        authenticate_user("user@example.com", bad_pass)
+
+
+def test_get_user_by_id(app):
+    """TG-51: ID ile kullanıcı sorgulama doğru bilgileri dönmeli veya None vermelidir."""
+    from app.accounts.services import get_user_by_id
+
+    with app.app_context():
+        created = register_user("idcheck@example.com", "Password123")
+        user = get_user_by_id(created["id"])
+        assert user is not None
+        assert user["id"] == created["id"]
+        assert user["email"] == "idcheck@example.com"
+        assert "password_hash" not in user or user["email"] == "idcheck@example.com"
+
+        # Var olmayan ID
+        assert get_user_by_id(99999) is None
+        # Geçersiz ID tipleri
+        assert get_user_by_id(0) is None
+        assert get_user_by_id("invalid") is None
+
+
+# ==============================================================================
+# TG-52: Hatalı Giriş ve 401 Unauthorized Hata Kontrolleri Birim Testleri
+# ==============================================================================
+
+
+def test_authenticate_user_timing_attack_countermeasure(app, monkeypatch):
+    """TG-52: Var olmayan kullanıcıda bile verify_password çağrılmalı,
+    timing attack ile kullanıcı tespiti engellenmelidir.
+    """
+    called_with_hash = []
+
+    def mock_verify(password, p_hash):
+        called_with_hash.append(p_hash)
+        return False
+
+    monkeypatch.setattr("app.accounts.services.verify_password", mock_verify)
+
+    with app.app_context():
+        with pytest.raises(ValueError, match="Geçersiz e-posta veya şifre"):
+            authenticate_user("ghost@example.com", "Password123")
+
+    assert len(called_with_hash) == 1
+    assert "scrypt:" in called_with_hash[0]
+
+
+@pytest.mark.parametrize("whitespace_pass", ["   ", "\t", "\n"])
+def test_authenticate_user_whitespace_password_raises(whitespace_pass):
+    """TG-52: Yalnızca boşluklardan oluşan şifreler reddedilmelidir."""
+    with pytest.raises(ValueError, match="Şifre boş bırakılamaz"):
+        authenticate_user("user@example.com", whitespace_pass)
+
+
+def test_authenticate_user_sql_injection_attempt_safely_rejected(app):
+    """TG-52: SQL injection girişimi veritabanını bozmadan güvenli şekilde 401/hata vermelidir."""
+    with app.app_context():
+        with pytest.raises(ValueError, match="Geçersiz e-posta veya şifre"):
+            authenticate_user("admin' OR '1'='1", "Password123")
+
+
+# ==============================================================================
+# TG-53: 5 Hatalı Girişte Brute-Force Güvenlik Kilidi Birim Testleri
+# ==============================================================================
+
+
+def test_lockout_tracker_locks_at_5_attempts():
+    """TG-53: 5 hatalı denemede hesap 15 dakika süreyle kilitlenmelidir."""
+    from app.accounts.security import AccountLockoutTracker
+
+    tracker = AccountLockoutTracker(max_attempts=5, lockout_minutes=15)
+    email = "target@example.com"
+
+    for i in range(1, 5):
+        count, is_locked = tracker.record_failed_attempt(email)
+        assert count == i
+        assert is_locked is False
+        locked, _ = tracker.is_locked(email)
+        assert locked is False
+
+    # 5. denemede kilitlenmeli
+    count, is_locked = tracker.record_failed_attempt(email)
+    assert count == 5
+    assert is_locked is True
+
+    locked, remaining = tracker.is_locked(email)
+    assert locked is True
+    assert remaining is not None
+    assert remaining > 0
+
+
+def test_lockout_tracker_resets_counter():
+    """TG-53: Başarılı girişte sayaç sıfırlanmalıdır."""
+    from app.accounts.security import AccountLockoutTracker
+
+    tracker = AccountLockoutTracker(max_attempts=5, lockout_minutes=15)
+    email = "reset@example.com"
+
+    tracker.record_failed_attempt(email)
+    tracker.record_failed_attempt(email)
+    assert tracker._records[email]["count"] == 2
+
+    tracker.reset(email)
+    assert email not in tracker._records
+    locked, _ = tracker.is_locked(email)
+    assert locked is False
+
+
+def test_lockout_tracker_unlocks_after_time_expires():
+    """TG-53: Kilit süresi dolduğunda hesap otomatik olarak açılmalıdır."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.accounts.security import AccountLockoutTracker
+
+    tracker = AccountLockoutTracker(max_attempts=5, lockout_minutes=15)
+    email = "expire@example.com"
+
+    for _ in range(5):
+        tracker.record_failed_attempt(email)
+
+    assert tracker.is_locked(email)[0] is True
+
+    # Kilit süresini geçmişe alalım
+    tracker._records[email]["locked_until"] = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    is_locked, remaining = tracker.is_locked(email)
+    assert is_locked is False
+    assert remaining is None
+
+
+def test_lockout_tracker_invalid_inputs():
+    """TG-53: Geçersiz veya boş e-posta parametreleri güvenli ele alınmalıdır."""
+    from app.accounts.security import AccountLockoutTracker
+
+    tracker = AccountLockoutTracker()
+    assert tracker.is_locked(None) == (False, None)
+    assert tracker.is_locked("") == (False, None)
+    assert tracker.is_locked(123) == (False, None)
+    assert tracker.record_failed_attempt(None) == (0, False)
+    assert tracker.record_failed_attempt("") == (0, False)
+
+
+def test_lockout_tracker_record_after_expiration_resets_count():
+    """TG-53: Kilit süresi dolduktan sonraki yeni hatalı deneme sayacı 1'den başlatmalıdır."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.accounts.security import AccountLockoutTracker
+
+    tracker = AccountLockoutTracker(max_attempts=5, lockout_minutes=15)
+    email = "exp_reset@example.com"
+
+    for _ in range(5):
+        tracker.record_failed_attempt(email)
+
+    assert tracker.is_locked(email)[0] is True
+
+    # Kilit süresini geçmişe alalım
+    tracker._records[email]["locked_until"] = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    # Yeni hatalı deneme -> sayaç 1 olmalı, kilit kalkmış olmalı
+    count, is_locked = tracker.record_failed_attempt(email)
+    assert count == 1
+    assert is_locked is False
+
+
+# ==============================================================================
+# TG-54: @login_required ve @role_required Yetkilendirme Dekoratörleri Birim Testleri
+# ==============================================================================
+
+
+def test_login_required_decorator_blocks_without_session(app):
+    """TG-54: Oturum açılmamışken @login_required 401 dönmelidir."""
+    from app.accounts.security import login_required
+
+    @login_required
+    def dummy_view():
+        return "ok"
+
+    with app.test_request_context():
+        response, status_code = dummy_view()
+        assert status_code == 401
+        assert response.get_json()["error"] == "Oturum açılmamış."
+
+
+def test_login_required_decorator_passes_with_session(app):
+    """TG-54: Oturum açıkken @login_required g nesnesini doldurup fonksiyonu çalıştırmalıdır."""
+    from flask import g, session
+
+    from app.accounts.security import login_required
+
+    @login_required
+    def dummy_view():
+        return f"ok:{g.user_id}:{g.user_email}:{g.user_role}"
+
+    with app.test_request_context():
+        session["user_id"] = 42
+        session["user_email"] = "auth@example.com"
+        session["user_role"] = "participant"
+
+        result = dummy_view()
+        assert result == "ok:42:auth@example.com:participant"
+
+
+def test_role_required_decorator_blocks_unauthorized_role(app):
+    """TG-54: İstenen role sahip olmayan kullanıcıya 403 Forbidden dönülmelidir."""
+    from flask import session
+
+    from app.accounts.security import role_required
+
+    @role_required("admin")
+    def admin_only_view():
+        return "admin_ok"
+
+    with app.test_request_context():
+        session["user_id"] = 1
+        session["user_role"] = "participant"
+
+        response, status_code = admin_only_view()
+        assert status_code == 403
+        assert response.get_json()["error"] == "Bu işlem için yetkiniz bulunmamaktadır."
+
+
+def test_role_required_decorator_allows_authorized_role(app):
+    """TG-54: İstenen role sahip kullanıcı başarıyla erişebilmelidir."""
+    from flask import session
+
+    from app.accounts.security import role_required
+
+    @role_required("admin", "organizer")
+    def privileged_view():
+        return "privileged_ok"
+
+    with app.test_request_context():
+        session["user_id"] = 2
+        session["user_role"] = "organizer"
+
+        result = privileged_view()
+        assert result == "privileged_ok"
+
+
+
 
