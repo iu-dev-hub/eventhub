@@ -16,8 +16,11 @@ from playwright.sync_api import Page, expect
 
 pytestmark = pytest.mark.e2e
 
-SUCCESS_MSG = "Etkinlik bilgileri doğrulandı. Henüz kaydedilmedi."
-CAPACITY_EXCEEDED_MSG = "Etkinlik kapasitesi salonun kapasitesini aşamaz."
+# Servis (TG-22) mesajları güncellendi: başarılı durumda "(Kayıt işlemi Sprint 2'de
+# yapılacaktır.)" eki var ve kullanıcı Events ana sayfasına yönlendirilir; kapasite
+# aşımında mesaj gerçek kapasite değerlerini içerir.
+SUCCESS_MSG = "Etkinlik bilgileri doğrulandı. (Kayıt işlemi Sprint 2'de yapılacaktır.)"
+CAPACITY_EXCEEDED_MSG = "Etkinlik kapasitesi (101), salon kapasitesini (100) aşamaz."
 
 
 def fill_form(page: Page, capacity: str, price: str = "100"):
@@ -49,6 +52,7 @@ def test_e2e_01_valid_capacity_shows_success_message(page: Page):
     page.goto("/events/create")
     fill_form(page, capacity="50")
     page.get_by_role("button", name="Kontrol Et").click()
+    expect(page).to_have_url(re.compile(r"/events/$"))
     expect(page.get_by_role("alert")).to_have_text(SUCCESS_MSG)
 
 
