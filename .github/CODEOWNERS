@@ -20,11 +20,22 @@
 /app/templates/tickets/            @iu-dev-hub/team-tickets
 /app/templates/payments/           @iu-dev-hub/team-payments
 
+# Module tests: a team's tests can only be changed with that team's approval   [YENİ]
+/tests/unit/test_accounts.py              @iu-dev-hub/team-accounts
+/tests/unit/test_events.py                @iu-dev-hub/team-events
+/tests/unit/test_tickets.py               @iu-dev-hub/team-tickets
+/tests/unit/test_payments.py              @iu-dev-hub/team-payments
+/tests/integration/test_accounts.py       @iu-dev-hub/team-accounts
+/tests/integration/test_events.py         @iu-dev-hub/team-events
+/tests/integration/test_tickets.py        @iu-dev-hub/team-tickets
+/tests/integration/test_payments.py       @iu-dev-hub/team-payments
+
 # Shared code, schema and layout: affects all teams
 /app/__init__.py                   @iu-dev-hub/scrum-masters
 /app/core/                         @iu-dev-hub/scrum-masters
-/app/templates/base.html           @iu-dev-hub/scrum-masters
+/app/templates/*.html              @iu-dev-hub/scrum-masters
 /app/static/                       @iu-dev-hub/scrum-masters
+/tests/conftest.py                 @iu-dev-hub/scrum-masters
 
 # End-to-end tests: QA approval required
 /tests/e2e/                        @iu-dev-hub/qa
@@ -33,6 +44,7 @@
 /docs/                             @iu-dev-hub/product-owners
 /docs/definition-of-ready-and-done.md  @iu-dev-hub/scrum-masters
 /docs/interface-contract.md        @iu-dev-hub/scrum-masters
+/docs/decisions/                   @iu-dev-hub/scrum-masters
 
 # Course guides and onboarding (instructor)
 /docs/guides/                      @imyo-dev-hub
@@ -49,3 +61,9 @@
 /.github/                          @imyo-dev-hub
 /requirements.txt                  @imyo-dev-hub
 /pyproject.toml                    @imyo-dev-hub
+
+# --- Mobil Uygulama (team-mobile) ---
+/app/api/                                 @iu-dev-hub/team-mobile
+/mobile_client/                           @iu-dev-hub/team-mobile
+/tests/unit/test_api.py                   @iu-dev-hub/team-mobile
+/tests/integration/test_api.py            @iu-dev-hub/team-mobile
