@@ -243,3 +243,42 @@ def test_get_user_by_id(app):
         assert get_user_by_id(0) is None
         assert get_user_by_id("invalid") is None
 
+
+# ==============================================================================
+# TG-52: Hatalı Giriş ve 401 Unauthorized Hata Kontrolleri Birim Testleri
+# ==============================================================================
+
+
+def test_authenticate_user_timing_attack_countermeasure(app, monkeypatch):
+    """TG-52: Var olmayan kullanıcıda bile verify_password çağrılmalı,
+    timing attack ile kullanıcı tespiti engellenmelidir.
+    """
+    called_with_hash = []
+
+    def mock_verify(password, p_hash):
+        called_with_hash.append(p_hash)
+        return False
+
+    monkeypatch.setattr("app.accounts.services.verify_password", mock_verify)
+
+    with app.app_context():
+        with pytest.raises(ValueError, match="Geçersiz e-posta veya şifre"):
+            authenticate_user("ghost@example.com", "Password123")
+
+    assert len(called_with_hash) == 1
+    assert "scrypt:" in called_with_hash[0]
+
+
+@pytest.mark.parametrize("whitespace_pass", ["   ", "\t", "\n"])
+def test_authenticate_user_whitespace_password_raises(whitespace_pass):
+    """TG-52: Yalnızca boşluklardan oluşan şifreler reddedilmelidir."""
+    with pytest.raises(ValueError, match="Şifre boş bırakılamaz"):
+        authenticate_user("user@example.com", whitespace_pass)
+
+
+def test_authenticate_user_sql_injection_attempt_safely_rejected(app):
+    """TG-52: SQL injection girişimi veritabanını bozmadan güvenli şekilde 401/hata vermelidir."""
+    with app.app_context():
+        with pytest.raises(ValueError, match="Geçersiz e-posta veya şifre"):
+            authenticate_user("admin' OR '1'='1", "Password123")
+

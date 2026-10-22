@@ -94,7 +94,7 @@ def login():
     email = data.get("email") if data else None
     password = data.get("password") if data else None
 
-    if not email or not str(email).strip() or not password:
+    if not email or not str(email).strip() or not password or not str(password).strip():
         return jsonify({
             "error": "E-posta ve şifre zorunludur."
         }), 400

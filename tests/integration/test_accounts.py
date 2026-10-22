@@ -365,3 +365,69 @@ def test_me_with_deleted_user_in_session_clears_session_and_returns_401(client, 
     assert "Kullanıcı bulunamadı" in response.get_json()["error"]
 
 
+# ==============================================================================
+# TG-52: Hatalı Giriş ve 401 Unauthorized Hata Kontrolleri Entegrasyon Testleri
+# ==============================================================================
+
+
+def test_login_user_enumeration_prevention_identical_response(client, app):
+    """TG-52: Var olmayan kullanıcı ile yanlış şifre denemesi aynı 401 yanıtını dönmelidir."""
+    client.post(
+        "/accounts/register",
+        json={"email": "existinguser@example.com", "password": "Password123"},
+    )
+
+    # 1. Var olan kullanıcıya yanlış şifre
+    res1 = client.post(
+        "/accounts/login",
+        json={"email": "existinguser@example.com", "password": "WrongPassword123"},
+    )
+    # 2. Var olmayan kullanıcı
+    res2 = client.post(
+        "/accounts/login",
+        json={"email": "nonexistinguser@example.com", "password": "AnyPassword123"},
+    )
+
+    assert res1.status_code == 401
+    assert res2.status_code == 401
+    assert res1.get_json() == res2.get_json()
+    assert res1.get_json()["error"] == "Geçersiz e-posta veya şifre."
+
+
+@pytest.mark.parametrize("whitespace_pass", ["   ", "\t", "  \n  "])
+def test_login_whitespace_only_password_returns_400(client, whitespace_pass):
+    """TG-52: Sadece boşluklardan oluşan şifreler 400 Bad Request dönmelidir."""
+    response = client.post(
+        "/accounts/login",
+        json={"email": "user@example.com", "password": whitespace_pass},
+    )
+    assert response.status_code == 400
+    assert "E-posta ve şifre zorunludur" in response.get_json()["error"]
+
+
+def test_login_sql_injection_attempt_returns_401(client, app):
+    """TG-52: SQL injection payload'u ile giriş denemesi 401 Unauthorized ile reddedilmelidir."""
+    response = client.post(
+        "/accounts/login",
+        json={"email": "' OR 1=1 --", "password": "' OR '1'='1"},
+    )
+    assert response.status_code == 401
+    assert "Geçersiz e-posta veya şifre" in response.get_json()["error"]
+
+
+def test_login_trimmed_whitespace_email_success(client, app):
+    """TG-52: E-posta başındaki/sonundaki boşluklar temizlenerek giriş başarılı olmalıdır."""
+    client.post(
+        "/accounts/register",
+        json={"email": "trimuser@example.com", "password": "Password123"},
+    )
+
+    response = client.post(
+        "/accounts/login",
+        json={"email": "   trimuser@example.com   ", "password": "Password123"},
+    )
+    assert response.status_code == 200
+    assert response.get_json()["user"]["email"] == "trimuser@example.com"
+
+
+

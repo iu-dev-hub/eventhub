@@ -183,11 +183,19 @@ def register_user(email: str, password: str, role: str = DEFAULT_ROLE) -> Dict[s
     }
 
 
+DUMMY_SCRYPT_HASH = (
+    "scrypt:32768:8:1$6FpUTZybXZ3HcojC$fcc81f26de099d38104f6aae5a985cd85d09fb5ec"
+    "16119e27a6b9ba0fa7ffe20009ab1019b6600abae18058587be0af708f41cf8d2e46acac90"
+    "649f5ddcae0f0"
+)
+
+
 def authenticate_user(email: str, password: str) -> Dict[str, Any]:
-    """Authenticates a user with email and plaintext password (TG-50, PB-02).
+    """Authenticates a user with email and plaintext password (TG-50, TG-52, PB-02).
 
     Validates that credentials match an existing user record and checks
-    the provided password against the stored scrypt hash.
+    the provided password against the stored scrypt hash. Implements
+    timing-attack countermeasure to prevent user enumeration (TG-52).
 
     Args:
         email: User email address.
@@ -201,7 +209,7 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
     """
     if not email or not isinstance(email, str) or not email.strip():
         raise ValueError("E-posta adresi boş bırakılamaz.")
-    if not password or not isinstance(password, str):
+    if not password or not isinstance(password, str) or not password.strip():
         raise ValueError("Şifre boş bırakılamaz.")
 
     cleaned_email = email.strip().lower()
@@ -211,7 +219,11 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
         (cleaned_email,),
     ).fetchone()
 
-    if row is None or not verify_password(password, row["password_hash"]):
+    # TG-52 (OWASP): Timing attack ve user enumeration koruması
+    target_hash = row["password_hash"] if row is not None else DUMMY_SCRYPT_HASH
+    is_valid = verify_password(password, target_hash)
+
+    if row is None or not is_valid:
         raise ValueError("Geçersiz e-posta veya şifre.")
 
     return {
