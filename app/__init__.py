@@ -1,3 +1,4 @@
+
 """EventHub - application factory.
 
 Bu, çalışan en küçük uygulamadır. Modüller (accounts, events, tickets,
@@ -20,12 +21,17 @@ def create_app(test_config: dict | None = None) -> Flask:
         SECRET_KEY=os.environ.get("EVENTHUB_SECRET_KEY", "dev-secret-key"),
         DATABASE=os.path.join(app.instance_path, "eventhub.sqlite"),
     )
+
     if test_config:
         app.config.update(test_config)
 
     os.makedirs(app.instance_path, exist_ok=True)
     db.init_app(app)
 
+    # Tickets modülünü uygulamaya kaydet.
+    from app.tickets import bp as tickets_bp
+
+    app.register_blueprint(tickets_bp)
     # --- Module blueprints -------------------------------------------------
     # Her ekip Sprint 1'de kendi modülünü buraya kaydeder (alfabetik sırayla):
     #

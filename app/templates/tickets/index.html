@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Etkinlik Detayı{% endblock %}
+
+{% block content %}
+<section class="event-detail">
+    <a class="back-link" href="{{ url_for('home') }}">← Ana sayfaya dön</a>
+
+    <div class="event-card">
+        <p class="event-label">ETKİNLİK DETAYI</p>
+        <h1>{{ event.title | default("Etkinlik Adı", true) }}</h1>
+
+        <p class="event-description">
+            {{ event.description | default("Etkinlik hakkında detaylı bilgi burada yer alacaktır.", true) }}
+        </p>
+
+        <div class="event-info">
+            <p>
+                <strong>Tarih:</strong>
+                {{ event.date | default("Henüz belirtilmedi", true) }}
+            </p>
+            <p>
+                <strong>Konum:</strong>
+                {{ event.location | default("Henüz belirtilmedi", true) }}
+            </p>
+        </div>
+
+        <div class="ticket-panel">
+            <div>
+                <p class="ticket-label">Kalan Kontenjan</p>
+                <p class="ticket-count">
+                    {{ event.remaining_tickets | default(0, true) }}
+                    <span>bilet</span>
+                </p>
+            </div>
+
+            {% if event.remaining_tickets | default(0, true) | int > 0 %}
+                <button class="ticket-button" type="button">
+                    Bilet Al
+                </button>
+            {% else %}
+                <button class="ticket-button sold-out" type="button" disabled>
+                    Kontenjan Doldu
+                </button>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}
