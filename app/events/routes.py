@@ -2,6 +2,10 @@ from flask import render_template, request, flash, redirect, url_for
 from app.events import bp
 from app.events import services
 
+@bp.route("/")
+def index():
+    return render_template("events/index.html")
+
 @bp.route("/create", methods=("GET", "POST"))
 def create():
     if request.method == "POST":
