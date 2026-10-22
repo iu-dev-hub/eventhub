@@ -5,7 +5,7 @@ for user accounts, registration, and secure password hashing.
 """
 
 import re
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -181,3 +181,74 @@ def register_user(email: str, password: str, role: str = DEFAULT_ROLE) -> Dict[s
         "email": cleaned_email,
         "role": role,
     }
+
+
+DUMMY_SCRYPT_HASH = (
+    "scrypt:32768:8:1$6FpUTZybXZ3HcojC$fcc81f26de099d38104f6aae5a985cd85d09fb5ec"
+    "16119e27a6b9ba0fa7ffe20009ab1019b6600abae18058587be0af708f41cf8d2e46acac90"
+    "649f5ddcae0f0"
+)
+
+
+def authenticate_user(email: str, password: str) -> Dict[str, Any]:
+    """Authenticates a user with email and plaintext password (TG-50, TG-52, PB-02).
+
+    Validates that credentials match an existing user record and checks
+    the provided password against the stored scrypt hash. Implements
+    timing-attack countermeasure to prevent user enumeration (TG-52).
+
+    Args:
+        email: User email address.
+        password: User plaintext password.
+
+    Returns:
+        Dictionary containing authenticated user info (id, email, role).
+
+    Raises:
+        ValueError: If email/password is missing or invalid, or if authentication fails.
+    """
+    if not email or not isinstance(email, str) or not email.strip():
+        raise ValueError("E-posta adresi boş bırakılamaz.")
+    if not password or not isinstance(password, str) or not password.strip():
+        raise ValueError("Şifre boş bırakılamaz.")
+
+    cleaned_email = email.strip().lower()
+    db = get_db()
+    row = db.execute(
+        "SELECT id, email, password_hash, role FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1",
+        (cleaned_email,),
+    ).fetchone()
+
+    # TG-52 (OWASP): Timing attack ve user enumeration koruması
+    target_hash = row["password_hash"] if row is not None else DUMMY_SCRYPT_HASH
+    is_valid = verify_password(password, target_hash)
+
+    if row is None or not is_valid:
+        raise ValueError("Geçersiz e-posta veya şifre.")
+
+    return {
+        "id": row["id"],
+        "email": row["email"],
+        "role": row["role"],
+    }
+
+
+def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
+    """Fetches user information by user ID.
+
+    Args:
+        user_id: The integer ID of the user.
+
+    Returns:
+        Dictionary containing user information or None if not found.
+    """
+    if not user_id or not isinstance(user_id, int):
+        return None
+    db = get_db()
+    row = db.execute(
+        "SELECT id, email, role, created_at FROM users WHERE id = ? LIMIT 1",
+        (user_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return dict(row)
