@@ -515,5 +515,55 @@ def test_login_successful_login_resets_failed_attempts(client, app):
     assert again_fail.get_json()["remaining_attempts"] == 4
 
 
+# ==============================================================================
+# TG-54: @login_required ve @role_required Entegrasyon Testleri
+# ==============================================================================
+
+
+def test_admin_status_without_login_returns_401(client):
+    """TG-54: Giriş yapılmadan admin endpoint'ine erişildiğinde 401 dönmelidir."""
+    response = client.get("/accounts/admin/status")
+    assert response.status_code == 401
+    assert "Oturum açılmamış" in response.get_json()["error"]
+
+
+def test_admin_status_with_participant_role_returns_403(client, app):
+    """TG-54: Katılımcı rolündeki kullanıcı admin endpoint'ine
+    eriştiğinde 403 Forbidden dönmelidir.
+    """
+    # Katılımcı olarak kaydol ve giriş yap
+    client.post(
+        "/accounts/register",
+        json={"email": "participant@example.com", "password": "Password123", "role": "participant"},
+    )
+    client.post(
+        "/accounts/login",
+        json={"email": "participant@example.com", "password": "Password123"},
+    )
+
+    response = client.get("/accounts/admin/status")
+    assert response.status_code == 403
+    assert "yetkiniz bulunmamaktadır" in response.get_json()["error"]
+
+
+def test_admin_status_with_admin_role_returns_200(client, app):
+    """TG-54: Admin rolündeki kullanıcı admin endpoint'ine eriştiğinde 200 OK dönmelidir."""
+    # Admin olarak kaydol ve giriş yap
+    client.post(
+        "/accounts/register",
+        json={"email": "superadmin@example.com", "password": "Password123", "role": "admin"},
+    )
+    client.post(
+        "/accounts/login",
+        json={"email": "superadmin@example.com", "password": "Password123"},
+    )
+
+    response = client.get("/accounts/admin/status")
+    assert response.status_code == 200
+    assert response.get_json()["status"] == "ok"
+    assert "onaylandı" in response.get_json()["message"]
+
+
+
 
 

@@ -387,4 +387,80 @@ def test_lockout_tracker_record_after_expiration_resets_count():
     assert is_locked is False
 
 
+# ==============================================================================
+# TG-54: @login_required ve @role_required Yetkilendirme Dekoratörleri Birim Testleri
+# ==============================================================================
+
+
+def test_login_required_decorator_blocks_without_session(app):
+    """TG-54: Oturum açılmamışken @login_required 401 dönmelidir."""
+    from app.accounts.security import login_required
+
+    @login_required
+    def dummy_view():
+        return "ok"
+
+    with app.test_request_context():
+        response, status_code = dummy_view()
+        assert status_code == 401
+        assert response.get_json()["error"] == "Oturum açılmamış."
+
+
+def test_login_required_decorator_passes_with_session(app):
+    """TG-54: Oturum açıkken @login_required g nesnesini doldurup fonksiyonu çalıştırmalıdır."""
+    from flask import g, session
+
+    from app.accounts.security import login_required
+
+    @login_required
+    def dummy_view():
+        return f"ok:{g.user_id}:{g.user_email}:{g.user_role}"
+
+    with app.test_request_context():
+        session["user_id"] = 42
+        session["user_email"] = "auth@example.com"
+        session["user_role"] = "participant"
+
+        result = dummy_view()
+        assert result == "ok:42:auth@example.com:participant"
+
+
+def test_role_required_decorator_blocks_unauthorized_role(app):
+    """TG-54: İstenen role sahip olmayan kullanıcıya 403 Forbidden dönülmelidir."""
+    from flask import session
+
+    from app.accounts.security import role_required
+
+    @role_required("admin")
+    def admin_only_view():
+        return "admin_ok"
+
+    with app.test_request_context():
+        session["user_id"] = 1
+        session["user_role"] = "participant"
+
+        response, status_code = admin_only_view()
+        assert status_code == 403
+        assert response.get_json()["error"] == "Bu işlem için yetkiniz bulunmamaktadır."
+
+
+def test_role_required_decorator_allows_authorized_role(app):
+    """TG-54: İstenen role sahip kullanıcı başarıyla erişebilmelidir."""
+    from flask import session
+
+    from app.accounts.security import role_required
+
+    @role_required("admin", "organizer")
+    def privileged_view():
+        return "privileged_ok"
+
+    with app.test_request_context():
+        session["user_id"] = 2
+        session["user_role"] = "organizer"
+
+        result = privileged_view()
+        assert result == "privileged_ok"
+
+
+
 

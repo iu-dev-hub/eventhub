@@ -4,8 +4,11 @@ This module provides rate limiting, brute-force lockout tracking,
 and access control decorators for authentication and authorization.
 """
 
+import functools
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, Tuple
+
+from flask import g, jsonify, session
 
 MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_DURATION_MINUTES = 15
@@ -100,3 +103,56 @@ class AccountLockoutTracker:
 
 # Global tracker singleton
 lockout_tracker = AccountLockoutTracker()
+
+
+def login_required(view_func):
+    """Decorator ensuring that the user has an active session (TG-54, PB-02).
+
+    If the user is not authenticated, returns 401 Unauthorized.
+    If authenticated, populates Flask g with user info and proceeds.
+    """
+    @functools.wraps(view_func)
+    def wrapped_view(*args, **kwargs):
+        user_id = session.get("user_id")
+        if not user_id:
+            return jsonify({
+                "error": "Oturum açılmamış."
+            }), 401
+
+        g.user_id = user_id
+        g.user_email = session.get("user_email")
+        g.user_role = session.get("user_role")
+        return view_func(*args, **kwargs)
+
+    return wrapped_view
+
+
+def role_required(*allowed_roles: str):
+    """Decorator restricting route access to specific user roles (TG-54, PB-02).
+
+    Args:
+        allowed_roles: Role strings (e.g. 'admin', 'organizer', 'participant').
+    """
+    def decorator(view_func):
+        @functools.wraps(view_func)
+        def wrapped_view(*args, **kwargs):
+            user_id = session.get("user_id")
+            if not user_id:
+                return jsonify({
+                    "error": "Oturum açılmamış."
+                }), 401
+
+            user_role = session.get("user_role")
+            if user_role not in allowed_roles:
+                return jsonify({
+                    "error": "Bu işlem için yetkiniz bulunmamaktadır."
+                }), 403
+
+            g.user_id = user_id
+            g.user_email = session.get("user_email")
+            g.user_role = user_role
+            return view_func(*args, **kwargs)
+
+        return wrapped_view
+
+    return decorator
