@@ -240,3 +240,128 @@ def test_register_boundary_passwords_succeed(client):
     assert res20.status_code == 201
 
 
+# ==============================================================================
+# TG-50, TG-51: Giriş (Login), Çıkış (Logout) ve Session Entegrasyon Testleri
+# ==============================================================================
+
+
+def test_login_success_creates_session_and_200(client, app):
+    """TG-50, TG-51: Başarılı giriş 200 dönmeli ve oturum (session) oluşturmalıdır."""
+    # 1. Kullanıcı kaydı yap
+    client.post(
+        "/accounts/register",
+        json={"email": "loginuser@example.com", "password": "Password123", "role": "participant"},
+    )
+
+    # 2. Giriş yap
+    response = client.post(
+        "/accounts/login",
+        json={"email": "loginuser@example.com", "password": "Password123"},
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["message"] == "Giriş başarılı."
+    assert data["user"]["email"] == "loginuser@example.com"
+    assert "id" in data["user"]
+
+    # 3. Session /me endpoint'i ile doğrulanmalı
+    me_resp = client.get("/accounts/me")
+    assert me_resp.status_code == 200
+    me_data = me_resp.get_json()
+    assert me_data["user"]["email"] == "loginuser@example.com"
+
+
+def test_login_form_data_support(client, app):
+    """TG-50: Form verisi (application/x-www-form-urlencoded) ile giriş desteklenmelidir."""
+    client.post(
+        "/accounts/register",
+        json={"email": "formlogin@example.com", "password": "Password123"},
+    )
+
+    response = client.post(
+        "/accounts/login",
+        data={"email": "formlogin@example.com", "password": "Password123"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["user"]["email"] == "formlogin@example.com"
+
+
+def test_login_invalid_password_returns_401(client, app):
+    """TG-50: Hatalı şifre girildiğinde 401 Unauthorized dönmelidir."""
+    client.post(
+        "/accounts/register",
+        json={"email": "authfail@example.com", "password": "Password123"},
+    )
+
+    response = client.post(
+        "/accounts/login",
+        json={"email": "authfail@example.com", "password": "WrongPassword1"},
+    )
+
+    assert response.status_code == 401
+    assert "Geçersiz e-posta veya şifre" in response.get_json()["error"]
+
+
+def test_login_nonexistent_email_returns_401(client, app):
+    """TG-50: Sistemde olmayan e-posta ile giriş denemesi 401 Unauthorized dönmelidir."""
+    response = client.post(
+        "/accounts/login",
+        json={"email": "unknown@example.com", "password": "Password123"},
+    )
+
+    assert response.status_code == 401
+    assert "Geçersiz e-posta veya şifre" in response.get_json()["error"]
+
+
+def test_login_missing_fields_returns_400(client):
+    """TG-50: E-posta veya şifre eksik olduğunda 400 Bad Request dönmelidir."""
+    res1 = client.post("/accounts/login", json={"email": ""})
+    assert res1.status_code == 400
+
+    res2 = client.post("/accounts/login", json={"email": "user@example.com", "password": ""})
+    assert res2.status_code == 400
+
+
+def test_logout_clears_session(client, app):
+    """TG-51: Logout endpoint'i oturumu sonlandırmalı ve /me 401 dönmelidir."""
+    # 1. Kayıt ve giriş
+    client.post(
+        "/accounts/register",
+        json={"email": "logoutuser@example.com", "password": "Password123"},
+    )
+    client.post(
+        "/accounts/login",
+        json={"email": "logoutuser@example.com", "password": "Password123"},
+    )
+
+    # Oturumun aktif olduğunu teyit et
+    assert client.get("/accounts/me").status_code == 200
+
+    # 2. Çıkış yap (logout)
+    logout_resp = client.post("/accounts/logout")
+    assert logout_resp.status_code == 200
+    assert logout_resp.get_json()["message"] == "Oturum başarıyla kapatıldı."
+
+    # 3. Oturum kapandıktan sonra /me çağrısı 401 dönmeli
+    assert client.get("/accounts/me").status_code == 401
+
+
+def test_me_without_session_returns_401(client):
+    """TG-51: Giriş yapılmadan /accounts/me çağrıldığında 401 dönmelidir."""
+    response = client.get("/accounts/me")
+    assert response.status_code == 401
+    assert "Oturum açılmamış" in response.get_json()["error"]
+
+
+def test_me_with_deleted_user_in_session_clears_session_and_returns_401(client, app):
+    """TG-51: Session'daki user_id veritabanında yoksa session temizlenmeli ve 401 dönmelidir."""
+    with client.session_transaction() as sess:
+        sess["user_id"] = 99999
+
+    response = client.get("/accounts/me")
+    assert response.status_code == 401
+    assert "Kullanıcı bulunamadı" in response.get_json()["error"]
+
+
