@@ -430,4 +430,90 @@ def test_login_trimmed_whitespace_email_success(client, app):
     assert response.get_json()["user"]["email"] == "trimuser@example.com"
 
 
+# ==============================================================================
+# TG-53: 5 Hatalı Girişte Brute-Force Güvenlik Kilidi Entegrasyon Testleri
+# ==============================================================================
+
+
+def test_login_brute_force_lockout_after_5_failed_attempts(client, app):
+    """TG-53: 5 kez ardışık hatalı şifre girildiğinde hesap
+    429 Too Many Requests ile kilitlenmelidir.
+    """
+    from app.accounts.security import lockout_tracker
+
+    lockout_tracker.clear_all()
+
+    email = "victim@example.com"
+    client.post(
+        "/accounts/register",
+        json={"email": email, "password": "CorrectPassword1"},
+    )
+
+    # 1 - 4. denemeler: 401 dönmeli, kalan deneme sayısı bildirilmeli
+    for attempt in range(1, 5):
+        resp = client.post(
+            "/accounts/login",
+            json={"email": email, "password": "WrongPassword!"},
+        )
+        assert resp.status_code == 401
+        data = resp.get_json()
+        assert data["remaining_attempts"] == (5 - attempt)
+        assert "Geçersiz e-posta veya şifre" in data["error"]
+
+    # 5. deneme: 429 Too Many Requests ile kilitlenmeli
+    resp5 = client.post(
+        "/accounts/login",
+        json={"email": email, "password": "WrongPassword!"},
+    )
+    assert resp5.status_code == 429
+    data5 = resp5.get_json()
+    assert "geçici olarak kilitlendi" in data5["error"]
+    assert data5["remaining_seconds"] > 0
+
+    # 6. deneme (doğru şifre girilse bile kilitli kalmalı)
+    resp6 = client.post(
+        "/accounts/login",
+        json={"email": email, "password": "CorrectPassword1"},
+    )
+    assert resp6.status_code == 429
+    assert "geçici olarak kilitlendi" in resp6.get_json()["error"]
+
+
+def test_login_successful_login_resets_failed_attempts(client, app):
+    """TG-53: Hatalı denemelerin ardından başarılı giriş yapılırsa sayaç sıfırlanmalıdır."""
+    from app.accounts.security import lockout_tracker
+
+    lockout_tracker.clear_all()
+
+    email = "resetflow@example.com"
+    client.post(
+        "/accounts/register",
+        json={"email": email, "password": "CorrectPassword1"},
+    )
+
+    # 3 kez hatalı deneme
+    for _ in range(3):
+        res = client.post(
+            "/accounts/login",
+            json={"email": email, "password": "WrongPassword!"},
+        )
+        assert res.status_code == 401
+
+    # Başarılı giriş -> sayacı sıfırlar
+    success_resp = client.post(
+        "/accounts/login",
+        json={"email": email, "password": "CorrectPassword1"},
+    )
+    assert success_resp.status_code == 200
+
+    # Tekrar hatalı girildiğinde kilitlenmemeli, sıfırdan 4 kalan deneme vermeli
+    again_fail = client.post(
+        "/accounts/login",
+        json={"email": email, "password": "WrongPassword!"},
+    )
+    assert again_fail.status_code == 401
+    assert again_fail.get_json()["remaining_attempts"] == 4
+
+
+
 

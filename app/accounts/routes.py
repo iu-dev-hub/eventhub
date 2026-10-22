@@ -5,6 +5,7 @@ Provides user registration endpoints supporting both JSON API and form payloads.
 
 from flask import Blueprint, jsonify, render_template, request, session
 
+from app.accounts.security import lockout_tracker
 from app.accounts.services import (
     DuplicateEmailError,
     authenticate_user,
@@ -99,8 +100,21 @@ def login():
             "error": "E-posta ve şifre zorunludur."
         }), 400
 
+    email_str = str(email).strip().lower()
+
+    # TG-53: Brute-force hesap kilitleme kontrolü
+    is_locked, remaining_seconds = lockout_tracker.is_locked(email_str)
+    if is_locked:
+        return jsonify({
+            "error": "Çok sayıda başarısız giriş denemesi. Hesabınız geçici olarak kilitlendi.",
+            "remaining_seconds": remaining_seconds,
+        }), 429
+
     try:
-        user = authenticate_user(email=str(email), password=str(password))
+        user = authenticate_user(email=email_str, password=str(password))
+        # Başarılı girişte hatalı deneme sayacı sıfırlanır (TG-53)
+        lockout_tracker.reset(email_str)
+
         # TG-51: Flask session altyapısı ile oturum başlatma
         session.clear()
         session["user_id"] = user["id"]
@@ -113,8 +127,19 @@ def login():
         }), 200
 
     except ValueError as e:
+        count, is_now_locked = lockout_tracker.record_failed_attempt(email_str)
+        if is_now_locked:
+            return jsonify({
+                "error": (
+                    "Çok sayıda başarısız giriş denemesi. "
+                    "Hesabınız 15 dakika süreyle geçici olarak kilitlendi."
+                ),
+                "remaining_seconds": 900,
+            }), 429
+
         return jsonify({
-            "error": str(e)
+            "error": str(e),
+            "remaining_attempts": max(0, 5 - count),
         }), 401
 
 

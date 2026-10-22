@@ -282,3 +282,109 @@ def test_authenticate_user_sql_injection_attempt_safely_rejected(app):
         with pytest.raises(ValueError, match="Geçersiz e-posta veya şifre"):
             authenticate_user("admin' OR '1'='1", "Password123")
 
+
+# ==============================================================================
+# TG-53: 5 Hatalı Girişte Brute-Force Güvenlik Kilidi Birim Testleri
+# ==============================================================================
+
+
+def test_lockout_tracker_locks_at_5_attempts():
+    """TG-53: 5 hatalı denemede hesap 15 dakika süreyle kilitlenmelidir."""
+    from app.accounts.security import AccountLockoutTracker
+
+    tracker = AccountLockoutTracker(max_attempts=5, lockout_minutes=15)
+    email = "target@example.com"
+
+    for i in range(1, 5):
+        count, is_locked = tracker.record_failed_attempt(email)
+        assert count == i
+        assert is_locked is False
+        locked, _ = tracker.is_locked(email)
+        assert locked is False
+
+    # 5. denemede kilitlenmeli
+    count, is_locked = tracker.record_failed_attempt(email)
+    assert count == 5
+    assert is_locked is True
+
+    locked, remaining = tracker.is_locked(email)
+    assert locked is True
+    assert remaining is not None
+    assert remaining > 0
+
+
+def test_lockout_tracker_resets_counter():
+    """TG-53: Başarılı girişte sayaç sıfırlanmalıdır."""
+    from app.accounts.security import AccountLockoutTracker
+
+    tracker = AccountLockoutTracker(max_attempts=5, lockout_minutes=15)
+    email = "reset@example.com"
+
+    tracker.record_failed_attempt(email)
+    tracker.record_failed_attempt(email)
+    assert tracker._records[email]["count"] == 2
+
+    tracker.reset(email)
+    assert email not in tracker._records
+    locked, _ = tracker.is_locked(email)
+    assert locked is False
+
+
+def test_lockout_tracker_unlocks_after_time_expires():
+    """TG-53: Kilit süresi dolduğunda hesap otomatik olarak açılmalıdır."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.accounts.security import AccountLockoutTracker
+
+    tracker = AccountLockoutTracker(max_attempts=5, lockout_minutes=15)
+    email = "expire@example.com"
+
+    for _ in range(5):
+        tracker.record_failed_attempt(email)
+
+    assert tracker.is_locked(email)[0] is True
+
+    # Kilit süresini geçmişe alalım
+    tracker._records[email]["locked_until"] = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    is_locked, remaining = tracker.is_locked(email)
+    assert is_locked is False
+    assert remaining is None
+
+
+def test_lockout_tracker_invalid_inputs():
+    """TG-53: Geçersiz veya boş e-posta parametreleri güvenli ele alınmalıdır."""
+    from app.accounts.security import AccountLockoutTracker
+
+    tracker = AccountLockoutTracker()
+    assert tracker.is_locked(None) == (False, None)
+    assert tracker.is_locked("") == (False, None)
+    assert tracker.is_locked(123) == (False, None)
+    assert tracker.record_failed_attempt(None) == (0, False)
+    assert tracker.record_failed_attempt("") == (0, False)
+
+
+def test_lockout_tracker_record_after_expiration_resets_count():
+    """TG-53: Kilit süresi dolduktan sonraki yeni hatalı deneme sayacı 1'den başlatmalıdır."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.accounts.security import AccountLockoutTracker
+
+    tracker = AccountLockoutTracker(max_attempts=5, lockout_minutes=15)
+    email = "exp_reset@example.com"
+
+    for _ in range(5):
+        tracker.record_failed_attempt(email)
+
+    assert tracker.is_locked(email)[0] is True
+
+    # Kilit süresini geçmişe alalım
+    tracker._records[email]["locked_until"] = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    # Yeni hatalı deneme -> sayaç 1 olmalı, kilit kalkmış olmalı
+    count, is_locked = tracker.record_failed_attempt(email)
+    assert count == 1
+    assert is_locked is False
+
+
+
