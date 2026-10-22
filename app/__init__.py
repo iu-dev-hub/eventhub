@@ -31,6 +31,9 @@ def create_app(test_config: dict | None = None) -> Flask:
     #
     #   from app.tickets import bp as tickets_bp
     #   app.register_blueprint(tickets_bp)
+    
+    from app.events import bp as events_bp
+    app.register_blueprint(events_bp)
     # -----------------------------------------------------------------------
 
     @app.route("/")
