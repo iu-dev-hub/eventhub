@@ -32,11 +32,11 @@ def create_app(test_config: dict | None = None) -> Flask:
     #   from app.tickets import bp as tickets_bp
     #   app.register_blueprint(tickets_bp)
     # -----------------------------------------------------------------------
+    from app.accounts import bp as accounts_bp
+    app.register_blueprint(accounts_bp)
+
     from app.events import bp as events_bp
     app.register_blueprint(events_bp)
-    from app.accounts import bp as accounts_bp
-
-    app.register_blueprint(accounts_bp)
 
     @app.route("/")
     def home():

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Etkinlik Oluştur{% endblock %}
+
+{% block content %}
+<h1>Etkinlik Oluştur</h1>
+<p>Yeni bir etkinlik planlamak için aşağıdaki bilgileri doldurun.</p>
+
+<form action="{{ url_for('events.create') }}" method="post">
+    <div class="form-group">
+        <label for="title">Etkinlik Başlığı</label>
+        <input id="title" name="title" type="text" required placeholder="Örn: Yazılım Semineri">
+    </div>
+
+    <div class="form-group">
+        <label for="category">Kategori</label>
+        <select id="category" name="category" required>
+            <option value="">Seçiniz</option>
+            <option value="Eğitim">Eğitim</option>
+            <option value="Konser">Konser</option>
+            <option value="Konferans">Konferans</option>
+            <option value="Spor">Spor</option>
+            <option value="Diğer">Diğer</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="venue">Salon</label>
+        <input id="venue" name="venue" type="text" required placeholder="Örn: Salon A">
+    </div>
+
+    <div class="form-group">
+        <label for="start_time">Başlangıç Tarihi ve Saati</label>
+        <input id="start_time" name="start_time" type="datetime-local" required>
+    </div>
+
+    <div class="form-group">
+        <label for="end_time">Bitiş Tarihi ve Saati</label>
+        <input id="end_time" name="end_time" type="datetime-local" required>
+    </div>
+
+    <div class="form-group">
+        <label for="capacity">Etkinlik Kapasitesi</label>
+        <input id="capacity" name="capacity" type="number" min="1" required placeholder="Örn: 50">
+    </div>
+
+    <div class="form-group">
+        <label for="price">Bilet Fiyatı (TL)</label>
+        <input id="price" name="price" type="number" min="0" required placeholder="0" oninput="checkPrice()">
+        <small id="price_text" class="form-text text-muted">Ücretsiz etkinlikler için 0 giriniz.</small>
+    </div>
+
+    <!-- 4. Madde: Buton ismi değişti -->
+    <button type="submit">Kontrol Et</button>
+</form>
+
+<!-- 5. Madde: 0 TL kontrolü için JS kodu -->
+<script>
+function checkPrice() {
+    var priceInput = document.getElementById('price').value;
+    var priceText = document.getElementById('price_text');
+    if (priceInput === "0") {
+        priceText.innerHTML = "<strong>Ücretsiz</strong>";
+        priceText.style.color = "green";
+    } else {
+        priceText.innerHTML = "Ücretsiz etkinlikler için 0 giriniz.";
+        priceText.style.color = "";
+    }
+}
+</script>
+{% endblock %}
