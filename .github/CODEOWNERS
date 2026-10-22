@@ -67,3 +67,4 @@
 /mobile_client/                           @iu-dev-hub/team-mobile
 /tests/unit/test_api.py                   @iu-dev-hub/team-mobile
 /tests/integration/test_api.py            @iu-dev-hub/team-mobile
+/tests/unit/test_mobile_client.py         @iu-dev-hub/team-mobile
