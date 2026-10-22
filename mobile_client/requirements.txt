@@ -1,0 +1,3 @@
+# Mobil istemcinin bağımlılıkları. Ana requirements.txt dosyasına EKLENMEZ.
+# Spike sırasında çalışan sürümü sabitleyin (ör. flet==X.Y.Z) ve bu satırı güncelleyin.
+flet

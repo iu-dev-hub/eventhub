@@ -70,6 +70,9 @@ def cancel_ticket(ticket_id: int) -> None:
         raise ValueError("Bu bilet zaten iptal edilmiş.")
 
     #Durumu iptal olarak güncelle
+def cancel_ticket(ticket_id: int) -> None:
+    """Bilet durumunu iptal olarak günceller."""
+    db = get_db()
     db.execute(
         "UPDATE tickets SET status = ? WHERE id = ?",
         (CANCELLED_STATUS, ticket_id)

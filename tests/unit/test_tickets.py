@@ -37,3 +37,4 @@ def test_ticket_purchase_and_cancellation_capacity_flow(app, monkeypatch):
         # 3. Bilet iptali (Aktif bilet sayısı 1 azalmalı, kontenjan eski haline dönmeli)
         services.cancel_ticket(ticket_id)
         assert services.count_active_tickets(event_id=10) == initial_active
+        assert services.count_active_tickets(event_id=1) == 2
