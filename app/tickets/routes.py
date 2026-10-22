@@ -35,3 +35,4 @@ def index():
     }
 
     return render_template("tickets/index.html", event=event)
+    return render_template("tickets/index.html", event=event)
