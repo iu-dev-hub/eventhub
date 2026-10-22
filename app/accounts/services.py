@@ -5,7 +5,7 @@ for user accounts, registration, and secure password hashing.
 """
 
 import re
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -181,3 +181,62 @@ def register_user(email: str, password: str, role: str = DEFAULT_ROLE) -> Dict[s
         "email": cleaned_email,
         "role": role,
     }
+
+
+def authenticate_user(email: str, password: str) -> Dict[str, Any]:
+    """Authenticates a user with email and plaintext password (TG-50, PB-02).
+
+    Validates that credentials match an existing user record and checks
+    the provided password against the stored scrypt hash.
+
+    Args:
+        email: User email address.
+        password: User plaintext password.
+
+    Returns:
+        Dictionary containing authenticated user info (id, email, role).
+
+    Raises:
+        ValueError: If email/password is missing or invalid, or if authentication fails.
+    """
+    if not email or not isinstance(email, str) or not email.strip():
+        raise ValueError("E-posta adresi boş bırakılamaz.")
+    if not password or not isinstance(password, str):
+        raise ValueError("Şifre boş bırakılamaz.")
+
+    cleaned_email = email.strip().lower()
+    db = get_db()
+    row = db.execute(
+        "SELECT id, email, password_hash, role FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1",
+        (cleaned_email,),
+    ).fetchone()
+
+    if row is None or not verify_password(password, row["password_hash"]):
+        raise ValueError("Geçersiz e-posta veya şifre.")
+
+    return {
+        "id": row["id"],
+        "email": row["email"],
+        "role": row["role"],
+    }
+
+
+def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
+    """Fetches user information by user ID.
+
+    Args:
+        user_id: The integer ID of the user.
+
+    Returns:
+        Dictionary containing user information or None if not found.
+    """
+    if not user_id or not isinstance(user_id, int):
+        return None
+    db = get_db()
+    row = db.execute(
+        "SELECT id, email, role, created_at FROM users WHERE id = ? LIMIT 1",
+        (user_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return dict(row)

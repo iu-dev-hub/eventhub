@@ -6,6 +6,7 @@ Tests core business rules and scrypt hashing functions in isolation.
 import pytest
 
 from app.accounts.services import (
+    authenticate_user,
     hash_password,
     is_email_registered,
     register_user,
@@ -169,4 +170,76 @@ def test_validate_password_strength_empty(empty_password):
     """Boş şifre denemesi reddedilmelidir."""
     with pytest.raises(ValueError, match="Şifre boş bırakılamaz"):
         validate_password_strength(empty_password)
+
+
+# ==============================================================================
+# TG-50, PB-02: Kullanıcı Kimlik Doğrulama (authenticate_user) Birim Testleri
+# ==============================================================================
+
+
+def test_authenticate_user_success(app):
+    """TG-50: Doğru e-posta ve şifre ile kullanıcı başarıyla doğrulanmalıdır."""
+    with app.app_context():
+        created = register_user("testlogin@example.com", "Password123", role="participant")
+        auth_user = authenticate_user("testlogin@example.com", "Password123")
+
+        assert auth_user["id"] == created["id"]
+        assert auth_user["email"] == "testlogin@example.com"
+        assert auth_user["role"] == "participant"
+
+
+def test_authenticate_user_case_insensitive_email(app):
+    """TG-50: E-posta adresi büyük/küçük harf duyarsız doğrulanabilmelidir."""
+    with app.app_context():
+        register_user("caseuser@example.com", "Password123")
+        auth_user = authenticate_user("CaseUser@EXAMPLE.com", "Password123")
+        assert auth_user["email"] == "caseuser@example.com"
+
+
+def test_authenticate_user_wrong_password(app):
+    """TG-50: Yanlış parola girildiğinde ValueError fırlatılmalıdır."""
+    with app.app_context():
+        register_user("wrongpass@example.com", "Password123")
+        with pytest.raises(ValueError, match="Geçersiz e-posta veya şifre"):
+            authenticate_user("wrongpass@example.com", "WrongPassword1")
+
+
+def test_authenticate_user_nonexistent_email(app):
+    """TG-50: Kayıtlı olmayan e-posta ile giriş denendiğinde ValueError fırlatılmalıdır."""
+    with app.app_context():
+        with pytest.raises(ValueError, match="Geçersiz e-posta veya şifre"):
+            authenticate_user("nonexistent@example.com", "Password123")
+
+
+@pytest.mark.parametrize("bad_email", ["", "   ", None])
+def test_authenticate_user_empty_email_raises(bad_email):
+    """Boş e-posta ile giriş denendiğinde ValueError fırlatılmalıdır."""
+    with pytest.raises(ValueError, match="E-posta adresi boş bırakılamaz"):
+        authenticate_user(bad_email, "Password123")
+
+
+@pytest.mark.parametrize("bad_pass", ["", None])
+def test_authenticate_user_empty_password_raises(bad_pass):
+    """Boş parola ile giriş denendiğinde ValueError fırlatılmalıdır."""
+    with pytest.raises(ValueError, match="Şifre boş bırakılamaz"):
+        authenticate_user("user@example.com", bad_pass)
+
+
+def test_get_user_by_id(app):
+    """TG-51: ID ile kullanıcı sorgulama doğru bilgileri dönmeli veya None vermelidir."""
+    from app.accounts.services import get_user_by_id
+
+    with app.app_context():
+        created = register_user("idcheck@example.com", "Password123")
+        user = get_user_by_id(created["id"])
+        assert user is not None
+        assert user["id"] == created["id"]
+        assert user["email"] == "idcheck@example.com"
+        assert "password_hash" not in user or user["email"] == "idcheck@example.com"
+
+        # Var olmayan ID
+        assert get_user_by_id(99999) is None
+        # Geçersiz ID tipleri
+        assert get_user_by_id(0) is None
+        assert get_user_by_id("invalid") is None
 
