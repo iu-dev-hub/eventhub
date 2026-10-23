@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block title %}Kayıt Ol{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='accounts.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="auth-single-container">
+  <div class="auth-form-header">
+    <div style="font-size: 2rem; margin-bottom: 0.5rem;">📅</div>
+    <h1>Hemen kayıt olun!</h1>
+    <p>Etkinliklere katılmak, favorilerinizi kaydetmek ve daha fazlası için hesabınızı oluşturun.</p>
+  </div>
+
+  <div id="register-alert" class="message error" style="display: none; margin-bottom: 1rem;"></div>
+
+  <form id="register-form" method="POST" action="{{ url_for('accounts.register') }}">
+    <div class="form-row">
+      <div class="form-group">
+        <label for="first_name">Adınız</label>
+        <div class="input-with-icon">
+          <span class="input-icon">👤</span>
+          <input
+            type="text"
+            id="first_name"
+            name="first_name"
+            placeholder="Adınız"
+            required
+            autocomplete="given-name"
+          >
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="last_name">Soyadınız</label>
+        <div class="input-with-icon">
+          <span class="input-icon">👤</span>
+          <input
+            type="text"
+            id="last_name"
+            name="last_name"
+            placeholder="Soyadınız"
+            required
+            autocomplete="family-name"
+          >
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="email">E-posta Adresiniz</label>
+      <div class="input-with-icon">
+        <span class="input-icon">✉️</span>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          placeholder="ornek@email.com"
+          required
+          autocomplete="email"
+        >
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="password">Şifreniz</label>
+      <div class="input-with-icon">
+        <span class="input-icon">🔒</span>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          placeholder="En az 8 karakter, harf ve rakam"
+          required
+          autocomplete="new-password"
+        >
+        <button
+          type="button"
+          class="toggle-password"
+          aria-label="Şifreyi Göster veya Gizle"
+          onclick="togglePasswordVisibility('password', this)"
+        >👁️</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="password_confirm">Şifrenizi Tekrar Giriniz</label>
+      <div class="input-with-icon">
+        <span class="input-icon">🔒</span>
+        <input
+          type="password"
+          id="password_confirm"
+          name="password_confirm"
+          placeholder="Şifrenizi tekrar edin"
+          required
+          autocomplete="new-password"
+        >
+        <button
+          type="button"
+          class="toggle-password"
+          aria-label="Şifreyi Göster veya Gizle"
+          onclick="togglePasswordVisibility('password_confirm', this)"
+        >👁️</button>
+      </div>
+    </div>
+
+    <!-- TG-78: Öğrenci Statüsü Seçimi -->
+    <div class="form-group" style="background: #f8fafc; padding: 0.85rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+      <label class="checkbox-label" for="is_student" style="font-weight: 600; color: var(--text-main);">
+        <input type="checkbox" id="is_student" name="is_student" value="true" onchange="toggleStudentFields(this)">
+        <span>🎓 Üniversite / Yükseköğrenim Öğrencisiyim</span>
+      </label>
+      <div id="student-number-wrapper" style="display: none; margin-top: 0.75rem;">
+        <label for="student_number" style="font-size: 0.82rem; color: var(--text-muted);">Öğrenci Numarası</label>
+        <input
+          type="text"
+          id="student_number"
+          name="student_number"
+          class="form-control"
+          placeholder="Örn: 120501001"
+        >
+      </div>
+    </div>
+
+    <!-- TG-68, TG-79: Hukuki Koşullar Onayı -->
+    <div class="form-group">
+      <label class="checkbox-label" for="terms_accepted">
+        <input type="checkbox" id="terms_accepted" name="terms_accepted" value="true" required>
+        <span>
+          <a href="{{ url_for('accounts.terms') }}" target="_blank" class="forgot-link">Kullanım Koşulları</a>'nı
+          ve
+          <a href="{{ url_for('accounts.privacy') }}" target="_blank" class="forgot-link">Gizlilik Politikası</a>'nı
+          okudum, kabul ediyorum.
+        </span>
+      </label>
+    </div>
+
+    <button type="submit" id="register-submit-btn" class="btn btn-primary">
+      Kayıt Ol &rarr;
+    </button>
+
+    <div class="auth-footer">
+      Zaten hesabınız var mı? <a href="{{ url_for('accounts.login') }}">Giriş Yap</a>
+    </div>
+  </form>
+</div>
+
+<script>
+function togglePasswordVisibility(fieldId, btn) {
+  const field = document.getElementById(fieldId);
+  if (field.type === "password") {
+    field.type = "text";
+    btn.textContent = "🙈";
+  } else {
+    field.type = "password";
+    btn.textContent = "👁️";
+  }
+}
+
+function toggleStudentFields(checkbox) {
+  const wrapper = document.getElementById("student-number-wrapper");
+  wrapper.style.display = checkbox.checked ? "block" : "none";
+}
+
+document.getElementById("register-form").addEventListener("submit", async function(e) {
+  e.preventDefault();
+  const alertEl = document.getElementById("register-alert");
+  alertEl.style.display = "none";
+
+  const first_name = document.getElementById("first_name").value.trim();
+  const last_name = document.getElementById("last_name").value.trim();
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+  const password_confirm = document.getElementById("password_confirm").value;
+  const is_student = document.getElementById("is_student").checked;
+  const student_number = document.getElementById("student_number").value.trim();
+  const terms_accepted = document.getElementById("terms_accepted").checked;
+
+  if (password !== password_confirm) {
+    alertEl.textContent = "Girilen şifreler birbiriyle eşleşmiyor.";
+    alertEl.style.display = "block";
+    return;
+  }
+
+  if (!terms_accepted) {
+    alertEl.textContent = "Devam etmek için Kullanım Koşulları'nı kabul etmelisiniz.";
+    alertEl.style.display = "block";
+    return;
+  }
+
+  try {
+    const res = await fetch("{{ url_for('accounts.register') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        first_name,
+        last_name,
+        email,
+        password,
+        terms_accepted,
+        is_student,
+        student_number: is_student ? student_number : null
+      })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      window.location.href = "{{ url_for('accounts.login') }}";
+    } else {
+      alertEl.textContent = data.error || "Kayıt işlemi başarısız oldu.";
+      alertEl.style.display = "block";
+    }
+  } catch (err) {
+    alertEl.textContent = "Bir bağlantı hatası oluştu. Lütfen tekrar deneyin.";
+    alertEl.style.display = "block";
+  }
+});
+</script>
+{% endblock %}
