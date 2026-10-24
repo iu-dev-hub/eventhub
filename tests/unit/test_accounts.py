@@ -468,7 +468,7 @@ def test_register_user_with_full_name_and_student_status(app):
 
     with app.app_context():
         user = register_user(
-            email="ogrenci@istanbul.edu.tr",
+            email="ogrenci@igdir.edu.tr",
             password="SecurePass123",
             first_name="Ahmet",
             last_name="Yılmaz",
