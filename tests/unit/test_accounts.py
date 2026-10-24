@@ -462,5 +462,185 @@ def test_role_required_decorator_allows_authorized_role(app):
         assert result == "privileged_ok"
 
 
+def test_register_user_with_full_name_and_student_status(app):
+    """TG-68, TG-78: Ad, soyad ve öğrenci statüsü ile kayıt doğrulaması."""
+    from app.accounts.services import get_user_by_id, register_user
+
+    with app.app_context():
+        user = register_user(
+            email="ogrenci@igdir.edu.tr",
+            password="SecurePass123",
+            first_name="Ahmet",
+            last_name="Yılmaz",
+            terms_accepted=True,
+            is_student=True,
+            student_number="120501001",
+        )
+        assert user["first_name"] == "Ahmet"
+        assert user["last_name"] == "Yılmaz"
+        assert user["is_student"] is True
+
+        fetched = get_user_by_id(user["id"])
+        assert fetched is not None
+        assert fetched["first_name"] == "Ahmet"
+        assert fetched["last_name"] == "Yılmaz"
+        assert fetched["is_student"] is True
+        assert fetched["student_number"] == "120501001"
 
 
+def test_register_user_without_terms_fails(app):
+    """TG-68: Sözleşme kabul edilmediğinde ValueError fırlatılmalıdır."""
+    from app.accounts.services import register_user
+
+    with app.app_context():
+        with pytest.raises(ValueError, match="Kullanım Koşulları kabul edilmelidir"):
+            register_user(
+                email="noterms@example.com",
+                password="SecurePass123",
+                first_name="Test",
+                last_name="User",
+                terms_accepted=False,
+            )
+
+
+def test_update_user_profile_success(app):
+    """TG-73: Ad ve soyad güncellenebilmeli, rol ve email değişmemelidir."""
+    from app.accounts.services import get_user_by_id, register_user, update_user_profile
+
+    with app.app_context():
+        user = register_user(
+            email="profiletest@example.com",
+            password="SecurePass123",
+            first_name="EskiAd",
+            last_name="EskiSoyad",
+            terms_accepted=True,
+        )
+        updated = update_user_profile(user["id"], "YeniAd", "YeniSoyad")
+        assert updated["first_name"] == "YeniAd"
+        assert updated["last_name"] == "YeniSoyad"
+        assert updated["email"] == "profiletest@example.com"
+        assert updated["role"] == "participant"
+
+        fetched = get_user_by_id(user["id"])
+        assert fetched["first_name"] == "YeniAd"
+        assert fetched["last_name"] == "YeniSoyad"
+
+
+def test_update_user_profile_empty_names_fails(app):
+    """TG-73: Ad veya soyad boş girildiğinde ValueError fırlatılmalıdır."""
+    from app.accounts.services import register_user, update_user_profile
+
+    with app.app_context():
+        user = register_user(
+            email="emptyname@example.com",
+            password="SecurePass123",
+            first_name="Valid",
+            last_name="Name",
+            terms_accepted=True,
+        )
+        with pytest.raises(ValueError, match="Ad alanı boş bırakılamaz"):
+            update_user_profile(user["id"], "", "Valid")
+
+        with pytest.raises(ValueError, match="Soyad alanı boş bırakılamaz"):
+            update_user_profile(user["id"], "Valid", "")
+
+
+def test_change_password_success_and_verifies(app):
+    """TG-75: Şifre başarıyla değiştirilmeli ve yeni şifre doğrulanabilmelidir."""
+    from app.accounts.services import (
+        authenticate_user,
+        change_password,
+        register_user,
+    )
+
+    with app.app_context():
+        user = register_user(
+            email="changepwd@example.com",
+            password="OldPassword123",
+            first_name="Change",
+            last_name="Pass",
+            terms_accepted=True,
+        )
+        change_password(user["id"], "OldPassword123", "BrandNewPass456")
+
+        # Yeni şifreyle giriş başarılı olmalı
+        auth_user = authenticate_user("changepwd@example.com", "BrandNewPass456")
+        assert auth_user["id"] == user["id"]
+
+        # Eski şifre reddedilmeli
+        with pytest.raises(ValueError, match="Geçersiz e-posta veya şifre"):
+            authenticate_user("changepwd@example.com", "OldPassword123")
+
+
+def test_change_password_wrong_current_fails(app):
+    """TG-75: Mevcut şifre yanlışsa şifre değiştirme reddedilmelidir."""
+    from app.accounts.services import change_password, register_user
+
+    with app.app_context():
+        user = register_user(
+            email="wrongpwd@example.com",
+            password="CorrectPass123",
+            first_name="Wrong",
+            last_name="Pass",
+            terms_accepted=True,
+        )
+        with pytest.raises(ValueError, match="Mevcut şifreniz hatalı"):
+            change_password(user["id"], "IncorrectPass999", "NewPassWord123")
+
+
+def test_password_reset_token_lifecycle(app):
+    """TG-76: Şifre sıfırlama tokenı üretimi, kullanımı ve tek seferlik olması."""
+    from app.accounts.services import (
+        authenticate_user,
+        create_password_reset_token,
+        register_user,
+        reset_password_with_token,
+    )
+
+    with app.app_context():
+        register_user(
+            email="resettest@example.com",
+            password="InitialPass123",
+            first_name="Reset",
+            last_name="Test",
+            terms_accepted=True,
+        )
+
+        token = create_password_reset_token("resettest@example.com")
+        assert token is not None
+        assert len(token) > 20
+
+        # Şifreyi token ile sıfırla
+        reset_password_with_token(token, "ResetPassword789")
+
+        # Yeni şifre ile giriş doğrula
+        auth = authenticate_user("resettest@example.com", "ResetPassword789")
+        assert auth["email"] == "resettest@example.com"
+
+        # Kullanılmış token tekrar kullanılamaz
+        with pytest.raises(ValueError, match="Geçersiz veya süresi dolmuş"):
+            reset_password_with_token(token, "AnotherPass123")
+
+
+def test_update_notification_preferences(app):
+    """TG-81: Bildirim tercihleri güncellenebilmelidir."""
+    from app.accounts.services import (
+        get_user_by_id,
+        register_user,
+        update_notification_preferences,
+    )
+
+    with app.app_context():
+        user = register_user(
+            email="notifytest@example.com",
+            password="NotifyPass123",
+            first_name="Notify",
+            last_name="User",
+            terms_accepted=True,
+        )
+        fetched = get_user_by_id(user["id"])
+        assert fetched["notify_email"] is True
+
+        update_notification_preferences(user["id"], False)
+        fetched_after = get_user_by_id(user["id"])
+        assert fetched_after["notify_email"] is False

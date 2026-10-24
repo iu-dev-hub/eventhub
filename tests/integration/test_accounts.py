@@ -115,9 +115,7 @@ def test_password_not_stored_as_plaintext(client, app):
 
     with app.app_context():
         db = get_db()
-        row = db.execute(
-            "SELECT password_hash FROM users WHERE email = ?", (email,)
-        ).fetchone()
+        row = db.execute("SELECT password_hash FROM users WHERE email = ?", (email,)).fetchone()
 
         assert row is not None
         stored_hash = row["password_hash"]
@@ -564,6 +562,340 @@ def test_admin_status_with_admin_role_returns_200(client, app):
     assert "onaylandı" in response.get_json()["message"]
 
 
+# ==============================================================================
+# Sprint 3 Integration Tests (TG-68 through TG-82)
+# ==============================================================================
 
 
+def test_register_with_first_and_last_name(client):
+    """TG-68: Ad, soyad ve sözleşme onayı ile kayıt 201 Created dönmelidir."""
+    payload = {
+        "first_name": "Deniz",
+        "last_name": "Aydın",
+        "email": "deniz.aydin@example.com",
+        "password": "SecurePassword123",
+        "terms_accepted": True,
+    }
+    response = client.post("/accounts/register", json=payload)
+    assert response.status_code == 201
+    user = response.get_json()["user"]
+    assert user["first_name"] == "Deniz"
+    assert user["last_name"] == "Aydın"
+    assert user["email"] == "deniz.aydin@example.com"
 
+
+def test_register_empty_name_returns_400(client):
+    """TG-68: Ad veya soyad boş girildiğinde 400 Bad Request dönmelidir."""
+    payload = {
+        "first_name": "   ",
+        "last_name": "Aydın",
+        "email": "emptyname@example.com",
+        "password": "SecurePassword123",
+        "terms_accepted": True,
+    }
+    res1 = client.post("/accounts/register", json=payload)
+    assert res1.status_code == 400
+    assert "Ad alanı zorunludur" in res1.get_json()["error"]
+
+    payload["first_name"] = "Deniz"
+    payload["last_name"] = "  "
+    res2 = client.post("/accounts/register", json=payload)
+    assert res2.status_code == 400
+    assert "Soyad alanı zorunludur" in res2.get_json()["error"]
+
+
+def test_register_missing_terms_returns_400(client):
+    """TG-68: Kullanım Koşulları reddedildiğinde 400 dönmelidir."""
+    payload = {
+        "first_name": "Deniz",
+        "last_name": "Aydın",
+        "email": "termsno@example.com",
+        "password": "SecurePassword123",
+        "terms_accepted": False,
+    }
+    res = client.post("/accounts/register", json=payload)
+    assert res.status_code == 400
+    assert "Kullanım Koşulları" in res.get_json()["error"]
+
+
+def test_auth_screens_render_templates(client):
+    """TG-69, TG-70: Giriş ve Kayıt GET istekleri HTML şablonlarını render etmelidir."""
+    res_login = client.get("/accounts/login")
+    assert res_login.status_code == 200
+    assert "Tekrar Hoş Geldiniz!" in res_login.get_data(as_text=True)
+
+    res_reg = client.get("/accounts/register")
+    assert res_reg.status_code == 200
+    assert "Hemen kayıt olun!" in res_reg.get_data(as_text=True)
+
+
+def test_logout_confirm_and_post_flow(client):
+    """TG-69, TG-75: Logout GET onay şablonu sunmalı, POST oturumu temizlemelidir."""
+    # Giriş yap
+    client.post(
+        "/accounts/register",
+        json={"email": "logoutuser@example.com", "password": "Password123", "terms_accepted": True},
+    )
+    client.post(
+        "/accounts/login",
+        json={"email": "logoutuser@example.com", "password": "Password123"},
+    )
+
+    # GET isteği onay sayfasını açmalı
+    res_get = client.get("/accounts/logout")
+    assert res_get.status_code == 200
+    assert "Çıkış yapmak istediğinizden emin misiniz?" in res_get.get_data(as_text=True)
+
+    # POST isteği oturumu sonlandırmalı
+    res_post = client.post("/accounts/logout")
+    assert res_post.status_code == 200
+
+    # Oturum kapalı olduğu için /me 401 dönmeli
+    res_me = client.get("/accounts/me")
+    assert res_me.status_code == 401
+
+
+def test_dashboard_flow(client):
+    """TG-71: Dashboard oturum gerektirir ve HTML/JSON yanıtlarını destekler."""
+    # Oturumsuz istek 401 dönmeli
+    res_unauth = client.get("/accounts/dashboard")
+    assert res_unauth.status_code == 401
+
+    # Giriş yap
+    client.post(
+        "/accounts/register",
+        json={
+            "first_name": "Ceren",
+            "last_name": "Yılmaz",
+            "email": "ceren@example.com",
+            "password": "Password123",
+            "terms_accepted": True,
+        },
+    )
+    client.post(
+        "/accounts/login",
+        json={"email": "ceren@example.com", "password": "Password123"},
+    )
+
+    # HTML yanıtı
+    res_html = client.get("/accounts/dashboard", headers={"Accept": "text/html"})
+    assert res_html.status_code == 200
+    html_text = res_html.get_data(as_text=True)
+    assert "Tekrar Hoş Geldiniz, Ceren!" in html_text
+    assert "Bu ekran geçici bir izleme ekranıdır" in html_text
+
+    # JSON yanıtı
+    res_json = client.get("/accounts/dashboard", headers={"Accept": "application/json"})
+    assert res_json.status_code == 200
+    assert res_json.get_json()["user"]["first_name"] == "Ceren"
+
+
+def test_guest_screen_renders(client):
+    """TG-77: Misafir kullanıcı sayfası 200 OK ve özellik kartlarını sunmalıdır."""
+    res = client.get("/accounts/guest")
+    assert res.status_code == 200
+    content = res.get_data(as_text=True)
+    assert "Misafir Kullanıcı" in content
+    assert "Giriş Gerekli" in content
+
+
+def test_profile_and_edit_flow(client):
+    """TG-72, TG-73: Profil görüntüleme ve ad/soyad güncelleme akışı."""
+    client.post(
+        "/accounts/register",
+        json={
+            "first_name": "Ali",
+            "last_name": "Veli",
+            "email": "aliveli@example.com",
+            "password": "Password123",
+            "terms_accepted": True,
+        },
+    )
+    client.post(
+        "/accounts/login",
+        json={"email": "aliveli@example.com", "password": "Password123"},
+    )
+
+    # Profil sayfası
+    res_prof = client.get("/accounts/profile")
+    assert res_prof.status_code == 200
+    assert "Ali Veli" in res_prof.get_data(as_text=True)
+
+    # Profil güncelleme
+    res_edit = client.post(
+        "/accounts/profile/edit",
+        json={"first_name": "Ali Can", "last_name": "Kaya"},
+    )
+    assert res_edit.status_code == 200
+    assert res_edit.get_json()["user"]["first_name"] == "Ali Can"
+    assert res_edit.get_json()["user"]["last_name"] == "Kaya"
+
+    # Boş ad veya soyad reddedilmeli
+    res_bad = client.post(
+        "/accounts/profile/edit",
+        json={"first_name": "", "last_name": "Kaya"},
+    )
+    assert res_bad.status_code == 400
+
+
+def test_settings_and_change_password_endpoint(client):
+    """TG-74, TG-75: Ayarlar sayfası ve şifre değiştirme uç noktası."""
+    client.post(
+        "/accounts/register",
+        json={
+            "first_name": "Murat",
+            "last_name": "Demir",
+            "email": "murat@example.com",
+            "password": "OldPassword123",
+            "terms_accepted": True,
+        },
+    )
+    client.post(
+        "/accounts/login",
+        json={"email": "murat@example.com", "password": "OldPassword123"},
+    )
+
+    # Ayarlar sayfası GET
+    res_settings = client.get("/accounts/settings")
+    assert res_settings.status_code == 200
+    assert "Hesap Ayarları" in res_settings.get_data(as_text=True)
+
+    # Şifre değiştirme POST
+    res_cp = client.post(
+        "/accounts/change-password",
+        json={"current_password": "OldPassword123", "new_password": "NewSecurePass456"},
+    )
+    assert res_cp.status_code == 200
+
+    # Hatalı mevcut şifre ile deneme
+    res_cp_fail = client.post(
+        "/accounts/change-password",
+        json={"current_password": "WrongPassword999", "new_password": "NewSecurePass456"},
+    )
+    assert res_cp_fail.status_code == 400
+
+
+def test_forgot_password_and_reset_flow(client):
+    """TG-76: Şifremi unuttum token üretimi ve şifre sıfırlama akışı."""
+    client.post(
+        "/accounts/register",
+        json={
+            "first_name": "Selin",
+            "last_name": "Oz",
+            "email": "selin@example.com",
+            "password": "InitialPass123",
+            "terms_accepted": True,
+        },
+    )
+
+    # GET şablonu
+    res_get = client.get("/accounts/forgot-password")
+    assert res_get.status_code == 200
+    assert "Şifrenizi mi unuttunuz?" in res_get.get_data(as_text=True)
+
+    # POST token isteği
+    res_post = client.post("/accounts/forgot-password", json={"email": "selin@example.com"})
+    assert res_post.status_code == 200
+    data = res_post.get_json()
+    assert "reset_token" in data
+    token = data["reset_token"]
+
+    # Sıfırlama sayfası GET
+    res_reset_get = client.get(f"/accounts/reset-password/{token}")
+    assert res_reset_get.status_code == 200
+    assert "Yeni Şifre Belirleyin" in res_reset_get.get_data(as_text=True)
+
+    # Yeni şifre belirleme POST
+    res_reset_post = client.post(
+        f"/accounts/reset-password/{token}",
+        json={"new_password": "NewSelinPass123"},
+    )
+    assert res_reset_post.status_code == 200
+
+    # Yeni şifreyle giriş başarılı olmalı
+    res_login = client.post(
+        "/accounts/login",
+        json={"email": "selin@example.com", "password": "NewSelinPass123"},
+    )
+    assert res_login.status_code == 200
+
+
+def test_student_status_in_registration_and_me(client):
+    """TG-78: Öğrenci statüsü kayıt ve profil çıktısında yer almalıdır."""
+    payload = {
+        "first_name": "Bora",
+        "last_name": "Can",
+        "email": "bora.ogrenci@iu.edu.tr",
+        "password": "Password123",
+        "is_student": True,
+        "student_number": "120501099",
+        "terms_accepted": True,
+    }
+    client.post("/accounts/register", json=payload)
+    client.post(
+        "/accounts/login",
+        json={"email": "bora.ogrenci@iu.edu.tr", "password": "Password123"},
+    )
+
+    res_me = client.get("/accounts/me")
+    assert res_me.status_code == 200
+    user_me = res_me.get_json()["user"]
+    assert user_me["is_student"] is True
+    assert user_me["student_number"] == "120501099"
+
+
+def test_legal_pages_render_successfully(client):
+    """TG-79: Kullanım Koşulları, Gizlilik ve KVKK sayfaları 200 dönmelidir."""
+    res_terms = client.get("/accounts/terms")
+    assert res_terms.status_code == 200
+    assert "Kullanım Koşulları" in res_terms.get_data(as_text=True)
+    assert "DEMO TASLAĞI" in res_terms.get_data(as_text=True)
+
+    res_priv = client.get("/accounts/privacy")
+    assert res_priv.status_code == 200
+    assert "Gizlilik Politikası" in res_priv.get_data(as_text=True)
+
+    res_kvkk = client.get("/accounts/kvkk")
+    assert res_kvkk.status_code == 200
+    assert "KVKK Aydınlatma Metni" in res_kvkk.get_data(as_text=True)
+
+
+def test_preferences_endpoint(client):
+    """TG-81: Bildirim tercihleri güncelleme uç noktası."""
+    client.post(
+        "/accounts/register",
+        json={"email": "preftest@example.com", "password": "Password123", "terms_accepted": True},
+    )
+    client.post(
+        "/accounts/login",
+        json={"email": "preftest@example.com", "password": "Password123"},
+    )
+
+    res = client.post("/accounts/preferences", json={"notify_email": False})
+    assert res.status_code == 200
+
+    res_me = client.get("/accounts/me")
+    assert res_me.get_json()["user"]["notify_email"] is False
+
+
+def test_database_schema_idempotency(app):
+    """TG-82: Şema birden fazla kez çalıştırıldığında veriler korunmalıdır."""
+    from app.accounts.services import is_email_registered, register_user
+    from app.core.db import init_db
+
+    with app.app_context():
+        # Kullanıcı kaydet
+        register_user(
+            email="persist@example.com",
+            password="Password123",
+            first_name="Persist",
+            last_name="User",
+            terms_accepted=True,
+        )
+        assert is_email_registered("persist@example.com") is True
+
+        # Şemayı tekrar çalıştır (init_db)
+        init_db()
+
+        # Kullanıcı veritabanında hala mevcut olmalı (DROP TABLE yapılmadı)
+        assert is_email_registered("persist@example.com") is True

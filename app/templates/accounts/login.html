@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Giriş Yap{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='accounts.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+  <!-- Sol Hero Bölümü (Masaüstü - Ekran 1) -->
+  <div class="auth-hero">
+    <a href="{{ url_for('home') }}" class="hero-logo">
+      <span>📅</span> EventHub
+    </a>
+    <div>
+      <h2>Unutulmaz Etkinlikler Burada Başlar</h2>
+      <p class="hero-subtitle">
+        Konserlerden konferanslara, atölyelerden festivallere kadar binlerce etkinliği keşfedin;
+        katılın ve deneyiminizi paylaşın.
+      </p>
+    </div>
+    <div class="hero-features">
+      <div class="hero-feature-item">
+        <div class="hero-feature-icon">🔍</div>
+        <div>
+          <strong>Binlerce Etkinlik</strong>
+          <span>İlginizi çeken etkinlikleri keşfedin.</span>
+        </div>
+      </div>
+      <div class="hero-feature-item">
+        <div class="hero-feature-icon">🛡️</div>
+        <div>
+          <strong>Güvenli ve Kolay Katılım</strong>
+          <span>Biletinizi hızlı ve güvenli şekilde alın.</span>
+        </div>
+      </div>
+      <div class="hero-feature-item">
+        <div class="hero-feature-icon">⭐</div>
+        <div>
+          <strong>Daha Fazla Deneyim</strong>
+          <span>Sosyal bir topluluğun parçası olun.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sağ Form Bölümü (Ekran 1 & 2) -->
+  <div class="auth-form-side">
+    <div class="auth-form-header">
+      <h1>Tekrar Hoş Geldiniz!</h1>
+      <p>Hesabınıza giriş yaparak etkinlik dünyasına kaldığınız yerden devam edin.</p>
+    </div>
+
+    <div id="login-alert" class="message error" style="display: none; margin-bottom: 1rem;"></div>
+
+    <form id="login-form" method="POST" action="{{ url_for('accounts.login') }}">
+      <div class="form-group">
+        <label for="email">E-posta Adresiniz</label>
+        <div class="input-with-icon">
+          <span class="input-icon">✉️</span>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            placeholder="ornek@email.com"
+            required
+            autocomplete="email"
+          >
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Şifreniz</label>
+        <div class="input-with-icon">
+          <span class="input-icon">🔒</span>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            placeholder="••••••••"
+            required
+            autocomplete="current-password"
+          >
+          <button
+            type="button"
+            class="toggle-password"
+            aria-label="Şifreyi Göster veya Gizle"
+            onclick="togglePasswordVisibility('password', this)"
+          >👁️</button>
+        </div>
+      </div>
+
+      <div class="form-options-row">
+        <label class="checkbox-label" for="remember_me">
+          <input type="checkbox" id="remember_me" name="remember_me" value="true">
+          <span>Beni hatırla</span>
+        </label>
+        <a href="{{ url_for('accounts.forgot_password') }}" class="forgot-link">Şifremi unuttum?</a>
+      </div>
+
+      <button type="submit" id="login-submit-btn" class="btn btn-primary">
+        Giriş Yap &rarr;
+      </button>
+
+      <div class="divider">
+        <span>veya</span>
+      </div>
+
+      <a href="{{ url_for('accounts.guest') }}" class="btn btn-secondary">
+        <span>👤</span> Kayıtsız Devam Et
+      </a>
+
+      <div class="auth-footer">
+        Hesabınız yok mu? <a href="{{ url_for('accounts.register') }}">Kayıt Ol</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function togglePasswordVisibility(fieldId, btn) {
+  const field = document.getElementById(fieldId);
+  if (field.type === "password") {
+    field.type = "text";
+    btn.textContent = "🙈";
+  } else {
+    field.type = "password";
+    btn.textContent = "👁️";
+  }
+}
+
+document.getElementById("login-form").addEventListener("submit", async function(e) {
+  e.preventDefault();
+  const alertEl = document.getElementById("login-alert");
+  alertEl.style.display = "none";
+
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+  const remember_me = document.getElementById("remember_me").checked;
+
+  try {
+    const res = await fetch("{{ url_for('accounts.login') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, remember_me })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      window.location.href = "{{ url_for('accounts.dashboard') }}";
+    } else {
+      alertEl.textContent = data.error || "Giriş işlemi başarısız.";
+      alertEl.style.display = "block";
+    }
+  } catch (err) {
+    alertEl.textContent = "Bir bağlantı hatası oluştu. Lütfen tekrar deneyin.";
+    alertEl.style.display = "block";
+  }
+});
+</script>
+{% endblock %}
