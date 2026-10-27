@@ -899,3 +899,225 @@ def test_database_schema_idempotency(app):
 
         # Kullanıcı veritabanında hala mevcut olmalı (DROP TABLE yapılmadı)
         assert is_email_registered("persist@example.com") is True
+
+
+def test_login_remember_me_sets_permanent_session(client):
+    """TG-69: Beni Hatırla seçildiğinde kalıcı session aktif olmalıdır."""
+    client.post(
+        "/accounts/register",
+        json={"email": "remember@example.com", "password": "Password123", "terms_accepted": True},
+    )
+
+    res = client.post(
+        "/accounts/login",
+        json={"email": "remember@example.com", "password": "Password123", "remember_me": True},
+    )
+    assert res.status_code == 200
+    with client.session_transaction() as sess:
+        assert sess.permanent is True
+
+
+def test_session_user_deleted_returns_401(client, app):
+    """TG-71, TG-72, TG-74: Aktif session varken kullanıcı DB'den silinirse 401 dönmeli."""
+    with client.session_transaction() as sess:
+        sess["user_id"] = 99999
+        sess["user_email"] = "deleteduser@example.com"
+        sess["user_role"] = "participant"
+
+    res_dash = client.get("/accounts/dashboard")
+    assert res_dash.status_code == 401
+    assert "Kullanıcı bulunamadı" in res_dash.get_json()["error"]
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 99999
+        sess["user_email"] = "deleteduser@example.com"
+        sess["user_role"] = "participant"
+
+    res_prof = client.get("/accounts/profile")
+    assert res_prof.status_code == 401
+    assert "Kullanıcı bulunamadı" in res_prof.get_json()["error"]
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 99999
+        sess["user_email"] = "deleteduser@example.com"
+        sess["user_role"] = "participant"
+
+    res_set = client.get("/accounts/settings")
+    assert res_set.status_code == 401
+    assert "Kullanıcı bulunamadı" in res_set.get_json()["error"]
+
+
+def test_profile_edit_value_error_returns_400(client, monkeypatch):
+    """TG-73: update_user_profile servisi ValueError fırlatırsa 400 dönmelidir."""
+    client.post(
+        "/accounts/register",
+        json={"email": "prof_err@example.com", "password": "Password123", "terms_accepted": True},
+    )
+    client.post(
+        "/accounts/login",
+        json={"email": "prof_err@example.com", "password": "Password123"},
+    )
+
+    def mock_update_fail(*args, **kwargs):
+        raise ValueError("Servis seviyesi profil güncelleme hatası")
+
+    monkeypatch.setattr("app.accounts.routes.update_user_profile", mock_update_fail)
+
+    res = client.post("/accounts/profile/edit", json={"first_name": "Ali", "last_name": "Veli"})
+    assert res.status_code == 400
+    assert "Servis seviyesi profil güncelleme hatası" in res.get_json()["error"]
+
+
+
+def test_routes_json_negotiation(client):
+    """TG-71, TG-72, TG-74, TG-77: JSON Accept başlığı gönderildiğinde JSON dönmelidir."""
+    client.post(
+        "/accounts/register",
+        json={"email": "jsonreq@example.com", "password": "Password123", "terms_accepted": True},
+    )
+    client.post(
+        "/accounts/login",
+        json={"email": "jsonreq@example.com", "password": "Password123"},
+    )
+
+    # Guest JSON
+    res_guest = client.get("/accounts/guest", headers={"Accept": "application/json"})
+    assert res_guest.status_code == 200
+    assert res_guest.get_json()["status"] == "guest"
+
+    # Dashboard JSON
+    res_dash = client.get("/accounts/dashboard", headers={"Accept": "application/json"})
+    assert res_dash.status_code == 200
+    assert "user" in res_dash.get_json()
+
+    # Profile JSON
+    res_prof = client.get("/accounts/profile", headers={"Accept": "application/json"})
+    assert res_prof.status_code == 200
+    assert res_prof.get_json()["user"]["email"] == "jsonreq@example.com"
+
+    # Settings JSON
+    res_set = client.get("/accounts/settings", headers={"Accept": "application/json"})
+    assert res_set.status_code == 200
+    assert "settings" in res_set.get_json()
+
+
+def test_profile_edit_validations_and_privilege_escalation_protection(client):
+    """TG-73: Profil düzenlemede soyad zorunludur ve rol yetkisiz yükseltilemez."""
+    client.post(
+        "/accounts/register",
+        json={"email": "privcheck@example.com", "password": "Password123", "terms_accepted": True},
+    )
+    client.post(
+        "/accounts/login",
+        json={"email": "privcheck@example.com", "password": "Password123"},
+    )
+
+    # Boş soyad ile düzenleme -> 400
+    res_bad = client.post("/accounts/profile/edit", json={"first_name": "Ahmet", "last_name": ""})
+    assert res_bad.status_code == 400
+    assert "Soyad alanı zorunludur" in res_bad.get_json()["error"]
+
+    # Rolü admin yapma girişimi (Privilege Escalation atağı)
+    res_attack = client.post(
+        "/accounts/profile/edit",
+        json={"first_name": "Hacker", "last_name": "User", "role": "admin"},
+    )
+    assert res_attack.status_code == 200
+
+    # Kullanıcının rolü hala 'participant' kalmalı
+    res_me = client.get("/accounts/me")
+    assert res_me.get_json()["user"]["role"] == "participant"
+
+
+def test_change_password_routes_and_negative_cases(client):
+    """TG-75: Şifre değiştirme GET formu, eksik alanlar ve eski şifreyle giriş engeli."""
+    client.post(
+        "/accounts/register",
+        json={
+            "email": "chgroute@example.com",
+            "password": "InitialPass123",
+            "terms_accepted": True,
+        },
+    )
+    client.post(
+        "/accounts/login",
+        json={"email": "chgroute@example.com", "password": "InitialPass123"},
+    )
+
+    # GET şablonu
+    res_get = client.get("/accounts/change-password")
+    assert res_get.status_code == 200
+    assert "Şifre Değiştir" in res_get.get_data(as_text=True)
+
+    # Eksik alanlar -> 400
+    res_miss = client.post("/accounts/change-password", json={"current_password": "InitialPass123"})
+    assert res_miss.status_code == 400
+    assert "Mevcut şifre ve yeni şifre zorunludur" in res_miss.get_json()["error"]
+
+    # Hatalı mevcut şifre -> 400
+    res_wrong = client.post(
+        "/accounts/change-password",
+        json={"current_password": "WrongPass123", "new_password": "BrandNewPass123"},
+    )
+    assert res_wrong.status_code == 400
+    assert "Mevcut şifreniz hatalı" in res_wrong.get_json()["error"]
+
+    # Başarılı şifre değişimi
+    res_ok = client.post(
+        "/accounts/change-password",
+        json={"current_password": "InitialPass123", "new_password": "BrandNewPass123"},
+    )
+    assert res_ok.status_code == 200
+
+    # Eski şifre ile giriş artık 401 vermelidir
+    res_old_login = client.post(
+        "/accounts/login",
+        json={"email": "chgroute@example.com", "password": "InitialPass123"},
+    )
+    assert res_old_login.status_code == 401
+
+
+def test_forgot_password_and_reset_password_negative_cases(client):
+    """TG-76: Şifremi unuttum boş e-posta ve var olmayan e-posta kontrolleri."""
+    # Boş e-posta -> 400
+    res_empty = client.post("/accounts/forgot-password", json={"email": "   "})
+    assert res_empty.status_code == 400
+    assert "E-posta adresi zorunludur" in res_empty.get_json()["error"]
+
+    # Var olmayan e-posta -> 200 (User Enumeration engeli: token dönmez)
+    res_ghost = client.post("/accounts/forgot-password", json={"email": "ghostuser@example.com"})
+    assert res_ghost.status_code == 200
+    assert "reset_token" not in res_ghost.get_json()
+
+    # Reset password eksik yeni şifre -> 400
+    res_miss_pass = client.post("/accounts/reset-password/sometoken", json={})
+    assert res_miss_pass.status_code == 400
+    assert "Yeni şifre zorunludur" in res_miss_pass.get_json()["error"]
+
+    # Reset password geçersiz token -> 400
+    res_bad_token = client.post(
+        "/accounts/reset-password/invalid_token_123", json={"new_password": "NewPassword123"}
+    )
+    assert res_bad_token.status_code == 400
+    assert "Geçersiz veya süresi dolmuş" in res_bad_token.get_json()["error"]
+
+
+def test_preferences_invalid_error_handling(client, monkeypatch):
+    """TG-81: Tercih güncelleme esnasında ValueError fırlatılırsa 400 dönmelidir."""
+    client.post(
+        "/accounts/register",
+        json={"email": "pref_err@example.com", "password": "Password123", "terms_accepted": True},
+    )
+    client.post(
+        "/accounts/login",
+        json={"email": "pref_err@example.com", "password": "Password123"},
+    )
+
+    def mock_update_fail(*args, **kwargs):
+        raise ValueError("Simüle edilen hata")
+
+    monkeypatch.setattr("app.accounts.routes.update_notification_preferences", mock_update_fail)
+    res = client.post("/accounts/preferences", json={"notify_email": True})
+    assert res.status_code == 400
+    assert "Simüle edilen hata" in res.get_json()["error"]
+
