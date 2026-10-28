@@ -1,4 +1,4 @@
-# 📅 EventHub — Sprint 3 Accounts Modülü Ekran Kataloğu
+# 📅 EventHub — Sprint 3 Accounts Modülü Ekran Kataloğu (v2 Revize)
 
 > **Ders / Kurum:** Iğdır Üniversitesi Mühendislik Fakültesi — Yazılım Mühendisliği 4. Sınıf  
 > **Ders Adı:** Yazılım Sınama ve Doğrulama Dersi  
@@ -8,7 +8,19 @@
 > **Scrum Master:** Fatma Sümeyye ([@fatmasumeyye](https://github.com/fatmasumeyye))  
 > **QA / Tester:** Polat Bilir ([@polat1443](https://github.com/polat1443))  
 > **İlgili PR:** [#30: feat(accounts): sprint 3 interfaces and services (TG-68 - TG-82)](https://github.com/iu-dev-hub/eventhub/pull/30)  
-> **Otomatik Test Başarısı:** %100 Yeşil (159 / 159 test başarılı)
+> **Otomatik Test Başarısı:** %100 Yeşil (177 / 177 test başarılı, %100 Statement & Branch Kapsaması)
+
+---
+
+## 🎨 v2 Tasarım Revizyonları (PO & SM Geri Bildirimleri Doğrultusunda)
+
+Product Owner Abdülselam Onakbaş'ın 13 ekranlık referans tasarım prototipi ve Scrum Master Fatma Sümeyye'nin geri bildirimleri doğrultusunda şu görsel iyileştirmeler yapılmıştır:
+
+1. **Giriş Paneli (Ekran 1):** Sol tanıtım paneline yüksek çözünürlüklü konser/etkinlik sahne görseli ve üzerine koyu lacivert degrade kaplama eklendi.
+2. **Kayıt Formu (Ekran 3 & 4):** Referans taslağa tam uyum için "Adınız" ve "Soyadınız" giriş alanları yan yana düzenden çıkarılıp alt alta dikey form akışına dönüştürüldü.
+3. **Misafir Karşılama Ekranı (Ekran 6):** 4 özellik kartı masaüstünde tek bir yatay satırda (4 sütunlu ızgara) dizildi; "Giriş Yap" ve "Ücretsiz Hesap Oluştur" butonları kartların altına konumlandırıldı.
+4. **Hukuki Bilgilendirme Modal Pencereleri (Ekran 11 & 12):** Kullanıcı kayıt formundan ayrılmadan, sayfa üzerinde açılan, kaydırılabilir gövdeli ve kapatma butonlu (`✕`) modern modal diyaloglar entegre edildi.
+5. **Kurumsal Bilgiler:** Tüm sözleşme ve bilgilendirme metinleri "Iğdır Üniversitesi Yazılım Mühendisliği 4. Sınıf Yazılım Sınama ve Doğrulama Dersi" olarak güncellendi.
 
 ---
 
@@ -20,7 +32,7 @@
    - **TG-70 (`PB-03` - Responsive Giriş ve Kayıt Tasarımı):** Masaüstü çift panelli düzenin mobil ekranlarda tek sütuna uyarlanması zorunlu tutulmuştur.
    - **TG-80 (`PB-13` - Ortak Görsel Tasarım ve Bileşen Standardizasyonu):** 768px altı mobil breakpoint'lerde dokunmatik hedeflerin (`min-height: 44px`) ve esnek kartların sunulması şart koşulmuştur.
 3. **Kullanıcı Ergonomisi & Etkinlik Katılımcı Profili:**
-   Etkinlik biletleme ve katılım platformlarında kullanıcıların %70'inden fazlası mobil cihazlardan erişir. Masaüstü geniş düzeni mobilde yatay kayma yapmaması için mobil arayüzler optimize edilmiştir.
+   Etkinlik biletleme ve katılım platformlarında kullanıcıların büyük çoğunluğu mobil cihazlardan erişir. Masaüstü geniş düzeni mobilde yatay kayma yapmaması için mobil arayüzler optimize edilmiştir.
 
 ---
 
@@ -28,9 +40,9 @@
 
 ### 1. Giriş Arayüzü (Ekran 1 & Ekran 2)
 * **Rota:** `GET /accounts/login` | **Taiga:** TG-69, TG-70
-* **Açıklama:** Masaüstünde çift panelli marka ve form alanı; mobilde başparmak odaklı tek sütunlu akış.
+* **Açıklama:** Masaüstünde konser sahnesi arka planlı hero panel ve sağ form alanı; mobilde logo ve tek sütunlu ergonomik akış.
 
-| Ekran 1: Masaüstü Görünümü | Ekran 2: Mobil Görünüm |
+| Ekran 1: Masaüstü Görünümü (Konser Hero) | Ekran 2: Mobil Görünüm (Logo Başlıklı) |
 | :---: | :---: |
 | ![Ekran 1](01_giris_desktop.png) | ![Ekran 2](02_giris_mobile.png) |
 
@@ -38,9 +50,9 @@
 
 ### 2. Kayıt Arayüzü (Ekran 3 & Ekran 4)
 * **Rota:** `GET /accounts/register` | **Taiga:** TG-68, TG-70, TG-78
-* **Açıklama:** Ad, Soyad, E-posta, Şifre kuralları, Dinamik Öğrenci Numarası alanı ve Hukuki Onay kutuları.
+* **Açıklama:** Dikey sıralı Ad ve Soyad alanları, E-posta, Şifre kuralları göstergesi, Dinamik Öğrenci Numarası alanı ve Modal tetikleyicili onay kutusu.
 
-| Ekran 3: Masaüstü Kayıt Formu | Ekran 4: Mobil Kayıt Formu |
+| Ekran 3: Masaüstü Kayıt Formu (Dikey Ad/Soyad) | Ekran 4: Mobil Kayıt Formu |
 | :---: | :---: |
 | ![Ekran 3](03_kayit_desktop.png) | ![Ekran 4](04_kayit_mobile.png) |
 
@@ -58,9 +70,9 @@
 
 ### 4. Misafir Karşılama Ekranı (Ekran 6 & Ekran 7)
 * **Rota:** `GET /accounts/guest` | **Taiga:** TG-77 (`PB-10`)
-* **Açıklama:** Kayıtsız kullanıcılar için etkinlik keşif kartları aktif; bilet alma ve favorilere ekleme kilitli.
+* **Açıklama:** Geniş hero alanı, tek satırda 4 özellik kartı ve kartların altında konumlanan "Giriş Yap" / "Ücretsiz Hesap Oluştur" butonları.
 
-| Ekran 6: Masaüstü Misafir Karşılama | Ekran 7: Mobil Misafir Karşılama |
+| Ekran 6: Masaüstü Misafir Karşılama (4'lü Izgara & Alt Butonlar) | Ekran 7: Mobil Misafir Karşılama |
 | :---: | :---: |
 | ![Ekran 6](06_misafir_desktop.png) | ![Ekran 7](07_misafir_mobile.png) |
 
@@ -68,7 +80,7 @@
 
 ### 5. Giriş Sonrası Karşılama Paneli / Dashboard (Ekran 8 & Ekran 9)
 * **Rota:** `GET /accounts/dashboard` | **Taiga:** TG-71 (`PB-04`)
-* **Açıklama:** Ad-soyad karşılama, geçici izleme paneli bilgilendirmesi ve hızlı eylem butonları.
+* **Açıklama:** Sol kenar çubuğu menüsü, mavi geçici izleme paneli bilgilendirmesi ve 3 işlem kartı (Profilim, Ayarlar, Çıkış Yap).
 
 | Ekran 8: Masaüstü Dashboard | Ekran 9: Mobil Dashboard |
 | :---: | :---: |
@@ -78,7 +90,7 @@
 
 ### 6. Profil Bilgileri & Hesap Ayarları (Ekran 10a, 10b, 10c)
 * **Rota:** `GET /accounts/profile` & `GET /accounts/settings` | **Taiga:** TG-72, TG-73, TG-74, TG-75, TG-81
-* **Açıklama:** PO kararı gereği yalnızca Ad ve Soyad düzenlenebilir; E-posta ve Rol salt-okunurdur. Ayarlar sekmesinde şifre değiştirme ve e-posta bildirim tercihleri yer alır.
+* **Açıklama:** PO kararı gereği yalnızca Ad ve Soyad düzenlenebilir; E-posta ve Rol salt-okunurdur. Ayarlar sekmesinde scrypt ile güvenli şifre değiştirme ve e-posta bildirim tercihleri yer alır.
 
 | 10a: Masaüstü Profil | 10b: Mobil Profil | 10c: Hesap Ayarları & Bildirimler |
 | :---: | :---: | :---: |
@@ -86,11 +98,11 @@
 
 ---
 
-### 7. Hukuki Bilgilendirme Sayfaları (Ekran 11, 12, 12b)
-* **Rota:** `GET /accounts/terms`, `GET /accounts/privacy`, `GET /accounts/kvkk` | **Taiga:** TG-79 (`PB-12`)
-* **Açıklama:** Iğdır Üniversitesi Yazılım Mühendisliği 4. Sınıf Yazılım Sınama ve Doğrulama Dersi kapsamında hazırlanan demo taslak metinleri.
+### 7. Hukuki Bilgilendirme Modal Pencereleri (Ekran 11, 12, 12b)
+* **Rota:** `GET /accounts/terms`, `GET /accounts/privacy`, `GET /accounts/kvkk` ve Kayıt Modalları | **Taiga:** TG-79 (`PB-12`)
+* **Açıklama:** Kayıt ekranından ayrılmadan açılan, kaydırılabilir içerikli ve kapatma butonlu modal pencereler. Iğdır Üniversitesi Yazılım Mühendisliği 4. Sınıf Yazılım Sınama ve Doğrulama Dersi referansı içerir.
 
-| Ekran 11: Kullanım Koşulları | Ekran 12: Gizlilik Politikası | Ekran 12b: KVKK Aydınlatma Metni |
+| Ekran 11: Kullanım Koşulları (Modal) | Ekran 12: Gizlilik Politikası (Modal) | Ekran 12b: KVKK Sayfası |
 | :---: | :---: | :---: |
 | ![Ekran 11](11_kullanim_kosullari_desktop.png) | ![Ekran 12](12_gizlilik_politikasi_desktop.png) | ![Ekran 12b](12b_kvkk_desktop.png) |
 
@@ -103,4 +115,4 @@
 ![Ekran 13](13_cikis_onay_desktop.png)
 
 ---
-*EventHub Projesi — team-accounts Sprint 3 Çıktısı*
+*EventHub Projesi — team-accounts Sprint 3 Çıktısı (v2 Revize)*

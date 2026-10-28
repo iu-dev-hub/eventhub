@@ -17,35 +17,33 @@
   <div id="register-alert" class="message error" style="display: none; margin-bottom: 1rem;"></div>
 
   <form id="register-form" method="POST" action="{{ url_for('accounts.register') }}">
-    <div class="form-row">
-      <div class="form-group">
-        <label for="first_name">Adınız</label>
-        <div class="input-with-icon">
-          <span class="input-icon">👤</span>
-          <input
-            type="text"
-            id="first_name"
-            name="first_name"
-            placeholder="Adınız"
-            required
-            autocomplete="given-name"
-          >
-        </div>
+    <div class="form-group">
+      <label for="first_name">Adınız</label>
+      <div class="input-with-icon">
+        <span class="input-icon">👤</span>
+        <input
+          type="text"
+          id="first_name"
+          name="first_name"
+          placeholder="Adınız"
+          required
+          autocomplete="given-name"
+        >
       </div>
+    </div>
 
-      <div class="form-group">
-        <label for="last_name">Soyadınız</label>
-        <div class="input-with-icon">
-          <span class="input-icon">👤</span>
-          <input
-            type="text"
-            id="last_name"
-            name="last_name"
-            placeholder="Soyadınız"
-            required
-            autocomplete="family-name"
-          >
-        </div>
+    <div class="form-group">
+      <label for="last_name">Soyadınız</label>
+      <div class="input-with-icon">
+        <span class="input-icon">👤</span>
+        <input
+          type="text"
+          id="last_name"
+          name="last_name"
+          placeholder="Soyadınız"
+          required
+          autocomplete="family-name"
+        >
       </div>
     </div>
 
@@ -129,9 +127,9 @@
       <label class="checkbox-label" for="terms_accepted">
         <input type="checkbox" id="terms_accepted" name="terms_accepted" value="true" required>
         <span>
-          <a href="{{ url_for('accounts.terms') }}" target="_blank" class="forgot-link">Kullanım Koşulları</a>'nı
+          <a href="javascript:void(0)" onclick="openTermsModal()" class="forgot-link">Kullanım Koşulları</a>'nı
           ve
-          <a href="{{ url_for('accounts.privacy') }}" target="_blank" class="forgot-link">Gizlilik Politikası</a>'nı
+          <a href="javascript:void(0)" onclick="openPrivacyModal()" class="forgot-link">Gizlilik Politikası</a>'nı
           okudum, kabul ediyorum.
         </span>
       </label>
@@ -147,7 +145,125 @@
   </form>
 </div>
 
+<!-- Kullanım Koşulları Modalı (Ekran 11 - PB-12) -->
+<div id="terms-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-dialog-large">
+    <div class="modal-header">
+      <h2><span>📜</span> Kullanım Koşulları <span class="legal-demo-badge" style="margin: 0; font-size: 0.75rem;">DEMO TASLAĞI</span></h2>
+      <button type="button" class="modal-close-icon" onclick="closeTermsModal()" aria-label="Kapat">✕</button>
+    </div>
+    <div class="modal-scrollable-content">
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0;">
+        EventHub platformunu kullanmadan önce lütfen aşağıdaki koşulları dikkatlice okuyunuz.
+      </p>
+
+      <h3>1. Genel Hükümler</h3>
+      <p>
+        EventHub, kullanıcıların üniversite ve çevre etkinliklerini keşfetmelerine, etkinliklere kayıt olmalarına
+        ve biletleme süreçlerini yönetmelerine olanak tanıyan bir etkinlik yönetim platformudur. Bu platform,
+        Iğdır Üniversitesi Yazılım Mühendisliği 4. Sınıf Yazılım Sınama ve Doğrulama Dersi kapsamında bir prototip
+        olarak geliştirilmektedir.
+      </p>
+
+      <h3>2. Hesap Oluşturma ve Güvenlik</h3>
+      <p>
+        Kullanıcılar kayıt esnasında ad, soyad ve geçerli bir e-posta adresi sağlamakla yükümlüdür. Hesap şifrelerinin
+        güvenliği kullanıcının kendi sorumluluğundadır. EventHub, kullanıcı şifrelerini OWASP standartlarına uygun biçimde
+        scrypt şifreleme algoritmasıyla güvenli olarak saklamaktadır.
+      </p>
+
+      <h3>3. Etkinliklere Katılım</h3>
+      <p>
+        Etkinlik detayları, salon kapasiteleri ve kontenjan yönetimi ilgili organizatör ekiplerin kontrolündedir.
+        Öğrenci statüsüne sahip kullanıcılar, öğrenci belgeleri doğrultusunda avantajlı kontenjan ve indirimlerden
+        yararlanabilirler.
+      </p>
+
+      <h3>4. İçerik ve Paylaşımlar</h3>
+      <p>
+        Platform üzerinde üçüncü şahısların haklarını ihlal eden, yanıltıcı veya hukuka aykırı içeriklerin
+        paylaşılması yasaktır. İhlal tespit edilen hesaplar geçici veya kalıcı olarak durdurulabilir.
+      </p>
+
+      <h3>5. Sorumluluk Sınırları</h3>
+      <p>
+        Platform "olduğu gibi" (as-is) sunulmakta olup ders içi geliştirme ve test amaçlıdır.
+        Ticari ve nihai veri saklama garantisi verilmez. Bu metin demo amaçlı bir taslaktır.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-primary" style="width: auto; padding: 0.5rem 1.25rem;" onclick="closeTermsModal()">
+        Anladım ve Kapat
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Gizlilik Politikası ve KVKK Modalı (Ekran 12 - PB-12) -->
+<div id="privacy-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-dialog-large">
+    <div class="modal-header">
+      <h2><span>🛡️</span> Gizlilik Politikası ve KVKK <span class="legal-demo-badge" style="margin: 0; font-size: 0.75rem;">DEMO TASLAĞI</span></h2>
+      <button type="button" class="modal-close-icon" onclick="closePrivacyModal()" aria-label="Kapat">✕</button>
+    </div>
+    <div class="modal-scrollable-content">
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0;">
+        Kişisel verilerinizin nasıl toplandığı, kullanıldığı ve korunduğu hakkında bilgilendirme.
+      </p>
+
+      <h3>1. Toplanan Veriler ve Kapsam</h3>
+      <p>
+        EventHub, Iğdır Üniversitesi Yazılım Mühendisliği 4. Sınıf Yazılım Sınama ve Doğrulama Dersi kapsamında geliştirilen
+        bir etkinlik yönetim prototipidir. Platforma kayıt olan kullanıcılardan ad, soyad, e-posta adresi ve isteğe bağlı
+        olarak öğrenci statüsü bilgileri toplanmaktadır. Parolalar açık metin olarak asla tutulmaz; Werkzeug scrypt
+        algoritmasıyla kriptografik olarak saklanır.
+      </p>
+
+      <h3>2. Veri Sorumlusu (KVKK)</h3>
+      <p>
+        EventHub Projesi (Iğdır Üniversitesi Yazılım Mühendisliği 4. Sınıf Yazılım Sınama ve Doğrulama Dersi Ekibi)
+        tarafından veri sorumlusu sıfatıyla kişisel verileriniz işlenmektedir.
+      </p>
+
+      <h3>3. Verilerin Kullanım Amaçları</h3>
+      <p>
+        Kişisel veriler; hesap oluşturma, oturum yönetimi, yetkilendirme denetimi, etkinlik biletleme
+        süreçleri ve kullanıcı tercihlerine bağlı bildirimlerin iletilmesi amacıyla işlenmektedir.
+      </p>
+
+      <h3>4. Veri Güvenliği ve Paylaşım</h3>
+      <p>
+        Veriler ticari amaçla satılmaz veya üçüncü taraflarla paylaşılmaz. OWASP güvenlik standartları gereğince
+        brute-force saldırılarına karşı hesap kilitleme ve zamanlama analizi koruması uygulanır.
+      </p>
+
+      <h3>5. Kullanıcı Hakları</h3>
+      <p>
+        Kullanıcılar diledikleri zaman profil ekranından ad-soyad bilgilerini güncelleyebilir, şifrelerini değiştirebilir
+        ve bildirim tercihlerini yönetebilirler.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-primary" style="width: auto; padding: 0.5rem 1.25rem;" onclick="closePrivacyModal()">
+        Anladım ve Kapat
+      </button>
+    </div>
+  </div>
+</div>
+
 <script>
+function openTermsModal() {
+  document.getElementById("terms-modal").style.display = "flex";
+}
+function closeTermsModal() {
+  document.getElementById("terms-modal").style.display = "none";
+}
+function openPrivacyModal() {
+  document.getElementById("privacy-modal").style.display = "flex";
+}
+function closePrivacyModal() {
+  document.getElementById("privacy-modal").style.display = "none";
+}
 function togglePasswordVisibility(fieldId, btn) {
   const field = document.getElementById(fieldId);
   if (field.type === "password") {

@@ -18,14 +18,6 @@
       Etkinlikleri keşfedebilirsiniz. Daha fazla özellikten yararlanmak için giriş yapabilir
       veya ücretsiz hesap oluşturabilirsiniz.
     </p>
-    <div class="guest-hero-actions">
-      <a href="{{ url_for('accounts.login') }}" class="btn btn-primary" style="min-width: 160px;">
-        Giriş Yap
-      </a>
-      <a href="{{ url_for('accounts.register') }}" class="btn btn-outline" style="min-width: 160px;">
-        Ücretsiz Hesap Oluştur
-      </a>
-    </div>
   </div>
 
   <!-- Özellik Kartları (Ekran 6 & 7) -->
@@ -79,6 +71,16 @@
         </a>
       </div>
     </div>
+  </div>
+
+  <!-- Alt İşlem Butonları (Ekran 6 & 7) -->
+  <div class="guest-bottom-actions">
+    <a href="{{ url_for('accounts.login') }}" class="btn btn-primary" style="min-width: 180px; width: auto;">
+      Giriş Yap &rarr;
+    </a>
+    <a href="{{ url_for('accounts.register') }}" class="btn btn-secondary" style="min-width: 220px; width: auto;">
+      Ücretsiz Hesap Oluştur &rarr;
+    </a>
   </div>
 </div>
 {% endblock %}
