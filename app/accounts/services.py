@@ -21,7 +21,6 @@ MAX_PASSWORD_LENGTH = 20
 
 class DuplicateEmailError(ValueError):
     """Raised when attempting to register an already existing email (BR-1.2)."""
-
     pass
 
 
@@ -73,6 +72,7 @@ def validate_password_strength(password: str) -> None:
         )
     if not any(c.isalpha() for c in password) or not any(c.isdigit() for c in password):
         raise ValueError("Şifre en az bir harf ve en az bir rakam içermelidir.")
+
 
 
 def hash_password(password: str) -> str:

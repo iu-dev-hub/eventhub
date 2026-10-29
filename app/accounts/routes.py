@@ -30,18 +30,16 @@ def index():
         == "text/html"
     ):
         return render_template("accounts/index.html")
-    return jsonify(
-        {
-            "module": "accounts",
-            "description": "EventHub Hesap Yönetimi Modülü",
-            "endpoints": {
-                "register": "/accounts/register",
-                "login": "/accounts/login",
-                "logout": "/accounts/logout",
-                "me": "/accounts/me",
-            },
+    return jsonify({
+        "module": "accounts",
+        "description": "EventHub Hesap Yönetimi Modülü",
+        "endpoints": {
+            "register": "/accounts/register",
+            "login": "/accounts/login",
+            "logout": "/accounts/logout",
+            "me": "/accounts/me",
         }
-    ), 200
+    }), 200
 
 
 @bp.route("/register", methods=["POST"])
@@ -62,22 +60,26 @@ def register():
     role = data.get("role", "participant") if data else "participant"
 
     if not email or not str(email).strip() or not password:
-        return jsonify({"error": "E-posta ve şifre zorunludur."}), 400
+        return jsonify({
+            "error": "E-posta ve şifre zorunludur."
+        }), 400
 
     try:
         user = register_user(email=str(email), password=str(password), role=str(role))
-        return jsonify(
-            {
-                "message": "Kullanıcı kaydı başarıyla tamamlandı.",
-                "user": user,
-            }
-        ), 201
+        return jsonify({
+            "message": "Kullanıcı kaydı başarıyla tamamlandı.",
+            "user": user,
+        }), 201
 
     except DuplicateEmailError as e:
-        return jsonify({"error": str(e)}), 409
+        return jsonify({
+            "error": str(e)
+        }), 409
 
     except ValueError as e:
-        return jsonify({"error": str(e)}), 400
+        return jsonify({
+            "error": str(e)
+        }), 400
 
 
 @bp.route("/login", methods=["POST"])
@@ -98,19 +100,19 @@ def login():
     password = data.get("password") if data else None
 
     if not email or not str(email).strip() or not password or not str(password).strip():
-        return jsonify({"error": "E-posta ve şifre zorunludur."}), 400
+        return jsonify({
+            "error": "E-posta ve şifre zorunludur."
+        }), 400
 
     email_str = str(email).strip().lower()
 
     # TG-53: Brute-force hesap kilitleme kontrolü
     is_locked, remaining_seconds = lockout_tracker.is_locked(email_str)
     if is_locked:
-        return jsonify(
-            {
-                "error": "Çok sayıda başarısız giriş denemesi. Hesabınız geçici olarak kilitlendi.",
-                "remaining_seconds": remaining_seconds,
-            }
-        ), 429
+        return jsonify({
+            "error": "Çok sayıda başarısız giriş denemesi. Hesabınız geçici olarak kilitlendi.",
+            "remaining_seconds": remaining_seconds,
+        }), 429
 
     try:
         user = authenticate_user(email=email_str, password=str(password))
@@ -123,32 +125,26 @@ def login():
         session["user_email"] = user["email"]
         session["user_role"] = user["role"]
 
-        return jsonify(
-            {
-                "message": "Giriş başarılı.",
-                "user": user,
-            }
-        ), 200
+        return jsonify({
+            "message": "Giriş başarılı.",
+            "user": user,
+        }), 200
 
     except ValueError as e:
         count, is_now_locked = lockout_tracker.record_failed_attempt(email_str)
         if is_now_locked:
-            return jsonify(
-                {
-                    "error": (
-                        "Çok sayıda başarısız giriş denemesi. "
-                        "Hesabınız 15 dakika süreyle geçici olarak kilitlendi."
-                    ),
-                    "remaining_seconds": 900,
-                }
-            ), 429
+            return jsonify({
+                "error": (
+                    "Çok sayıda başarısız giriş denemesi. "
+                    "Hesabınız 15 dakika süreyle geçici olarak kilitlendi."
+                ),
+                "remaining_seconds": 900,
+            }), 429
 
-        return jsonify(
-            {
-                "error": str(e),
-                "remaining_attempts": max(0, 5 - count),
-            }
-        ), 401
+        return jsonify({
+            "error": str(e),
+            "remaining_attempts": max(0, 5 - count),
+        }), 401
 
 
 @bp.route("/logout", methods=["POST"])
@@ -161,7 +157,9 @@ def logout():
         200 OK: Session successfully terminated.
     """
     session.clear()
-    return jsonify({"message": "Oturum başarıyla kapatıldı."}), 200
+    return jsonify({
+        "message": "Oturum başarıyla kapatıldı."
+    }), 200
 
 
 @bp.route("/me", methods=["GET"])
@@ -177,17 +175,17 @@ def get_current_user():
     user = get_user_by_id(user_id)
     if not user:
         session.clear()
-        return jsonify({"error": "Kullanıcı bulunamadı."}), 401
+        return jsonify({
+            "error": "Kullanıcı bulunamadı."
+        }), 401
 
-    return jsonify(
-        {
-            "user": {
-                "id": user["id"],
-                "email": user["email"],
-                "role": user["role"],
-            }
+    return jsonify({
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "role": user["role"],
         }
-    ), 200
+    }), 200
 
 
 @bp.route("/admin/status", methods=["GET"])
@@ -200,9 +198,7 @@ def admin_status():
         401 Unauthorized: Not logged in.
         403 Forbidden: Logged in but not an admin.
     """
-    return jsonify(
-        {
-            "status": "ok",
-            "message": "Yönetici paneli erişimi onaylandı.",
-        }
-    ), 200
+    return jsonify({
+        "status": "ok",
+        "message": "Yönetici paneli erişimi onaylandı.",
+    }), 200

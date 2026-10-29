@@ -111,12 +111,13 @@ def login_required(view_func):
     If the user is not authenticated, returns 401 Unauthorized.
     If authenticated, populates Flask g with user info and proceeds.
     """
-
     @functools.wraps(view_func)
     def wrapped_view(*args, **kwargs):
         user_id = session.get("user_id")
         if not user_id:
-            return jsonify({"error": "Oturum açılmamış."}), 401
+            return jsonify({
+                "error": "Oturum açılmamış."
+            }), 401
 
         g.user_id = user_id
         g.user_email = session.get("user_email")
@@ -132,17 +133,20 @@ def role_required(*allowed_roles: str):
     Args:
         allowed_roles: Role strings (e.g. 'admin', 'organizer', 'participant').
     """
-
     def decorator(view_func):
         @functools.wraps(view_func)
         def wrapped_view(*args, **kwargs):
             user_id = session.get("user_id")
             if not user_id:
-                return jsonify({"error": "Oturum açılmamış."}), 401
+                return jsonify({
+                    "error": "Oturum açılmamış."
+                }), 401
 
             user_role = session.get("user_role")
             if user_role not in allowed_roles:
-                return jsonify({"error": "Bu işlem için yetkiniz bulunmamaktadır."}), 403
+                return jsonify({
+                    "error": "Bu işlem için yetkiniz bulunmamaktadır."
+                }), 403
 
             g.user_id = user_id
             g.user_email = session.get("user_email")

@@ -4,11 +4,9 @@ from app.tickets import services
 # Bilet modülü için Blueprint tanımı
 bp = Blueprint("tickets", __name__, url_prefix="/tickets")
 
-
 @bp.route("/")
 def index():
     return render_template("tickets/index.html")
-
 
 @bp.post("/<int:ticket_id>/cancel")
 def cancel_ticket(ticket_id: int):
@@ -21,8 +19,6 @@ def cancel_ticket(ticket_id: int):
     else:
         flash("Biletiniz başarıyla iptal edildi.", "success")
     return redirect(url_for("tickets.index"))
-
-
 from flask import render_template
 
 from app.tickets import bp
