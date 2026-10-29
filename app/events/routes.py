@@ -1,10 +1,14 @@
-from flask import render_template, request, flash, redirect, url_for
-from app.events import bp
-from app.events import services
+from flask import flash, jsonify, redirect, render_template, request, url_for
+
+from app.accounts.security import role_required
+from app.core.db import get_db
+from app.events import bp, services
+
 
 @bp.route("/")
 def index():
     return render_template("events/index.html")
+
 
 @bp.route("/create", methods=["GET", "POST"])
 def create():
@@ -35,15 +39,19 @@ def create():
             return redirect(url_for("events.create"))
 
     return render_template("events/create.html")
+
+
 @bp.route("/venues", methods=["GET"])
 def venues():
     """Kayıtlı salonların listelendiği sayfa."""
-    venues_list = services.get_all_venues() 
+    venues_list = services.get_all_venues()
     return render_template("events/venues.html", venues=venues_list)
 
+
 @bp.route("/venues/create", methods=["GET", "POST"])
+@role_required("admin")
 def create_venue():
-    """Yeni salon oluşturma sayfası ve formu."""
+    """Yeni salon oluşturma sayfası ve formu (BR-2.1). Yalnızca admin."""
     if request.method == "POST":
         name = request.form.get("name", "").strip()
         address = request.form.get("address", "").strip()
@@ -61,13 +69,17 @@ def create_venue():
             flash("Kapasite geçerli ve 1'den büyük bir sayı olmalıdır.", "error")
             return redirect(url_for("events.create_venue"))
 
-        is_valid, message = services.create_venue(name, address, capacity_val)
-        
-        if is_valid:
+        ok, venue_or_error, errors = services.create_venue(
+            get_db(), name, address, capacity_val
+        )
+
+        if ok:
             flash("Salon başarıyla kaydedildi.", "success")
             return redirect(url_for("events.venues"))
         else:
-            flash(message, "error")
+            # Hata mesajını göster
+            error_msg = errors[0] if errors else "Bir hata oluştu."
+            flash(error_msg, "error")
             return redirect(url_for("events.create_venue"))
 
     return render_template("events/create_venue.html")
