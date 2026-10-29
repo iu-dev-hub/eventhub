@@ -49,3 +49,30 @@ CREATE TABLE users (
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
+
+-- Owner: team-payments
+-- Koltuklar: etkinlik başına koltuk kodu benzersizdir.
+-- event_id için FOREIGN KEY şimdilik yok: events tablosu henüz şemada tanımlı değil.
+-- team-events tabloyu ekleyince interface-contract.md'ye yazılıp FK eklenecek.
+CREATE TABLE IF NOT EXISTS seats (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id     INTEGER NOT NULL,
+    seat_code    TEXT    NOT NULL,
+    status       TEXT    NOT NULL DEFAULT 'available'
+                 CHECK (status IN ('available', 'locked', 'sold')),
+    locked_until TEXT,
+    UNIQUE (event_id, seat_code)
+);
+
+-- Owner: team-payments
+-- Ödeme denemeleri: başarılı ve başarısız hepsi tutulur (eski payment_logs yerine).
+-- Kartın tamamı ASLA saklanmaz, yalnızca son 4 hane.
+CREATE TABLE IF NOT EXISTS payments (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    amount     REAL,
+    card_last4 TEXT,
+    success    INTEGER NOT NULL CHECK (success IN (0, 1)),
+    message    TEXT    NOT NULL,
+    seats      TEXT    NOT NULL,  -- JSON metin: ["A1","A2"]
+    created_at TEXT    NOT NULL
+);
