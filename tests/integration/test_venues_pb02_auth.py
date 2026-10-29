@@ -1,17 +1,18 @@
+from app.core.db import get_db
 from app.events.services import get_all_venues
 
 
 def test_unauthenticated_user_cannot_create_venue(client, app):
-    """Oturumsuz kullanıcının salon oluşturamamasını ve
+    """Oturumsuz kullanıcının salon oluşturma isteğinde 401 veya 302 döndüğünü
 
-    DB'ye kayıt atılmadığını test eder.
+    ve DB'ye kayıt atılmadığını test eder.
     """
     with app.app_context():
         initial_count = len(get_all_venues())
 
     response = client.post(
         "/events/venues",
-        data={
+        json={
             "name": "Anonim Salon",
             "address": "Cadde",
             "capacity": 100,
@@ -19,7 +20,6 @@ def test_unauthenticated_user_cannot_create_venue(client, app):
         follow_redirects=False,
     )
 
-    # Oturum yoksa 401 Unauthorized veya 302 login yönlendirmesi beklenir
     assert response.status_code in [401, 302]
 
     with app.app_context():
@@ -27,45 +27,76 @@ def test_unauthenticated_user_cannot_create_venue(client, app):
 
 
 def test_organizer_and_participant_cannot_create_venue(client, app):
-    """Organizatör ve katılımcı rollerinin salon oluşturma isteklerinin
+    """Organizatör ve katılımcı rollerinin oturum açarak salon oluşturmaya
 
-    403 Forbidden döndürdüğünü ve DB'ye kayıt atmadığını test eder.
+    çalıştığında 403 aldığını ve DB'ye kayıt atılmadığını test eder.
     """
-    with app.app_context():
-        initial_count = len(get_all_venues())
+    for idx, role in enumerate(["organizer", "participant"], start=20):
+        with app.app_context():
+            initial_count = len(get_all_venues())
+            db = get_db()
+            db.execute(
+                "INSERT OR REPLACE INTO users (id, email, password_hash, role) VALUES (?, ?, ?, ?)",
+                (idx, f"{role}@test.com", "dummy_hash", role),
+            )
+            db.commit()
 
-    response = client.post(
-        "/events/venues",
-        json={
-            "name": "Rol Engeli Salonu",
-            "address": "Adres",
-            "capacity": 150,
-        },
-    )
+        with client.session_transaction() as sess:
+            sess["user_id"] = idx
+            sess["user_role"] = role  # role_required 'user_role' kullanıyor!
+            sess["user_email"] = f"{role}@test.com"
 
-    assert response.status_code in [401, 403, 302]
+        response = client.post(
+            "/events/venues",
+            json={
+                "name": f"Rol Engeli Salonu {role}",
+                "address": "Adres",
+                "capacity": 150,
+            },
+            follow_redirects=False,
+        )
 
-    with app.app_context():
-        assert len(get_all_venues()) == initial_count
+        assert response.status_code == 403
+
+        with app.app_context():
+            assert len(get_all_venues()) == initial_count
 
 
 def test_admin_role_can_create_venue_via_api(client, app):
-    """Admin yetkisiyle POST /events/venues isteği gönderilerek
+    """Admin rolüyle oturum açılarak POST /events/venues isteği atıldığında
 
-    201 sonucu alındığını ve DB kaydının oluştuğunu test eder.
+    201 Created döndüğünü ve salonun DB'ye kaydedildiğini test eder.
     """
-    # Test ortamında admin oturumu açma veya admin client fixture kullanımı
-    # Eğer mevcut accounts testlerinde client fixture kullanılıyorsa,
-    # admin session simulate edilir.
+    with app.app_context():
+        initial_count = len(get_all_venues())
+        db = get_db()
+        db.execute(
+            "INSERT OR REPLACE INTO users (id, email, password_hash, role) VALUES (?, ?, ?, ?)",
+            (1, "admin_api@test.com", "dummy_hash", "admin"),
+        )
+        db.commit()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["user_role"] = "admin"  # role_required 'user_role' kullanıyor!
+        sess["user_email"] = "admin_api@test.com"
+
     response = client.post(
         "/events/venues",
         json={
-            "name": "Admin API Salonu",
-            "address": "Merkez Mah.",
+            "name": "Admin API Salonu PB02",
+            "address": "Merkez Mah. No:1",
             "capacity": 500,
         },
     )
 
-    # Oturum yoksa 401 döneceği için test altyapısına uygun
-    # status 201 veya role_required doğrulanır.
-    assert response.status_code in [201, 401, 403]
+    # API başarılı oluşturmada 201 Created döner
+    assert response.status_code == 201
+
+    with app.app_context():
+        venues = get_all_venues()
+        assert len(venues) == initial_count + 1
+        created = next((v for v in venues if v["name"] == "Admin API Salonu PB02"), None)
+        assert created is not None
+        assert created["address"] == "Merkez Mah. No:1"
+        assert created["capacity"] == 500
