@@ -80,3 +80,14 @@ def test_other_tables_still_created(app):
             for r in get_db().execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
     assert {"users", "tickets", "venues"} <= tables
+
+
+def test_reinitializing_db_keeps_existing_venues(app):
+    """init-db tekrar çalıştırıldığında admin'in tanımladığı salonlar silinmemeli."""
+    with app.app_context():
+        db = get_db()
+        _insert(db)
+        db.commit()
+        init_db()
+        count = get_db().execute("SELECT COUNT(*) FROM venues").fetchone()[0]
+    assert count == 1
