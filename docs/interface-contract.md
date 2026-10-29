@@ -19,7 +19,9 @@ SQLite veritabanını (`get_db()`) kullanır. İş kuralı kodları için `docs/
 ## 1. Accounts (Events'in kullandığı kısım)
 
 > Sahibi team-accounts. Aşağıdaki özet, Accounts kodundaki gerçek yapıdan
-> (`app/accounts/security.py`, `app/accounts/routes.py`) alınmıştır.
+> (`app/accounts/security.py`, `app/accounts/routes.py`) alınmıştır. Kullanıcı rolleri,
+> `@role_required("admin")` ve 401/403 davranışı Accounts ekibi tarafından Discussion #15'te
+> yazılı olarak doğrulanmıştır (bkz. 2.6, madde 1).
 
 ### Oturum anahtarları (Flask `session`)
 
@@ -155,10 +157,11 @@ Aşağıdaki tablo, hangi sözleşme maddesinin hangi ekiple doğrulanması gere
 durumunu gösterir. **Onaylanmayan maddeler açık karar olarak kalır;** onay alındıkça
 ilgili ekip durumu günceller. Durum sütunundaki "Koddan teyit" ifadesi, ilgili ekibin
 kodunun incelenmesiyle bulunan bilgiyi belirtir; ekibin yazılı onayı anlamına **gelmez**.
+"Onaylandı" ise ilgili ekibin yazılı onay verdiği maddeleri gösterir.
 
 | # | Madde | Ekip | Durum |
 |---|---|---|---|
-| 1 | Oturum anahtarları (`user_id`, `user_email`, `user_role`) ve `@role_required("admin")` yanıtları: 401 oturum yok, 403 yetki yok | Accounts | Koddan teyit (`app/accounts/security.py`). Ekip onayı **bekleniyor** |
+| 1 | Oturum anahtarları (`user_id`, `user_email`, `user_role`), kullanıcı rolleri, `@role_required("admin")` ve 401 (oturum yok) / 403 (yetki yok) davranışı | Accounts | **Onaylandı** — Accounts ekibi Discussion #15'te yazılı olarak doğruladı. Koddan da teyit edildi (`app/accounts/security.py`) |
 | 2 | `events.organizer_id` → `users.id` ilişkisi ve değerin `session["user_id"]`'den alınması | Accounts | **Açık karar**, onay bekleniyor |
 | 3 | `events` tablosu ve alanları (2.4). `app/tickets/services.py` şimdiden `SELECT capacity FROM events WHERE id = ?` çalıştırıyor, ancak tablo yok | Tickets | Koddan teyit: `id` ve `capacity` bekleniyor. Diğer alanlar **açık karar** |
 | 4 | `event_id` türü: `tickets.event_id` şemada INTEGER, Tickets mock verisinde (`app/api/tickets.json`, TG-67) metin (`"evt-001"`). `events.id` INTEGER önerilir | Tickets | **Açık karar** — mock verinin INTEGER'a uyarlanması gerekir |
