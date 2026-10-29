@@ -81,3 +81,50 @@ def test_every_payment_attempt_is_logged(client):
     assert len(logs) == 2
     assert logs[0]["success"] is True
     assert logs[1]["mesaj"] == "Yetersiz bakiye"
+
+def test_payment_fails_when_card_is_shorter_than_16_digits(client):
+    response = client.post("/api/payment/pay", json={
+        "cardNumber": "4242", "amount": 100, "seats": ["A1"],
+    })
+    assert response.get_json() == {"success": False, "message": "Geçersiz kart"}
+
+
+def test_payment_fails_when_card_has_15_digits(client):
+    # Sınır değer: 15 hane reddedilir
+    response = client.post("/api/payment/pay", json={
+        "cardNumber": "424242424242424", "amount": 100, "seats": ["A1"],
+    })
+    assert response.get_json()["success"] is False
+
+
+def test_payment_fails_when_card_is_longer_than_16_digits(client):
+    # Sınır değer: 17 hane reddedilir
+    response = client.post("/api/payment/pay", json={
+        "cardNumber": "42424242424242424", "amount": 100, "seats": ["A1"],
+    })
+    assert response.get_json()["success"] is False
+
+
+def test_payment_fails_when_card_contains_letters(client):
+    response = client.post("/api/payment/pay", json={
+        "cardNumber": "abc4242", "amount": 100, "seats": ["A1"],
+    })
+    assert response.get_json()["success"] is False
+
+
+def test_payment_succeeds_when_card_has_exactly_16_digits(client):
+    # Sınır değer: tam 16 hane kabul edilir
+    response = client.post("/api/payment/pay", json={
+        "cardNumber": "4242424242424242", "amount": 100, "seats": ["A1"],
+    })
+    assert response.get_json()["success"] is True
+
+
+def test_payment_fails_when_seat_is_already_sold(client):
+    client.post("/api/seats/lock", json={"seats": ["A1"]})
+    body = {"cardNumber": "4242424242424242", "amount": 100, "seats": ["A1"]}
+    first = client.post("/api/payment/pay", json=body)
+    second = client.post("/api/payment/pay", json=body)
+
+    assert first.get_json()["success"] is True
+    assert second.get_json() == {"success": False, "message": "Koltuk zaten satılmış"}
