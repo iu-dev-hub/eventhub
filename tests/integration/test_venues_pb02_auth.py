@@ -3,9 +3,9 @@ from app.events.services import get_all_venues
 
 
 def test_unauthenticated_user_cannot_create_venue(client, app):
-    """Oturumsuz kullanıcının salon oluşturma isteğinde 401 veya 302 döndüğünü
+    """Oturumsuz kullanıcının salon oluşturma isteğinde doğrudan
 
-    ve DB'ye kayıt atılmadığını test eder.
+    401 Unauthorized döndüğünü ve DB'ye kayıt atılmadığını test eder.
     """
     with app.app_context():
         initial_count = len(get_all_venues())
@@ -17,10 +17,9 @@ def test_unauthenticated_user_cannot_create_venue(client, app):
             "address": "Cadde",
             "capacity": 100,
         },
-        follow_redirects=False,
     )
 
-    assert response.status_code in [401, 302]
+    assert response.status_code == 401
 
     with app.app_context():
         assert len(get_all_venues()) == initial_count
@@ -43,7 +42,7 @@ def test_organizer_and_participant_cannot_create_venue(client, app):
 
         with client.session_transaction() as sess:
             sess["user_id"] = idx
-            sess["user_role"] = role  # role_required 'user_role' kullanıyor!
+            sess["user_role"] = role
             sess["user_email"] = f"{role}@test.com"
 
         response = client.post(
@@ -53,7 +52,6 @@ def test_organizer_and_participant_cannot_create_venue(client, app):
                 "address": "Adres",
                 "capacity": 150,
             },
-            follow_redirects=False,
         )
 
         assert response.status_code == 403
@@ -78,7 +76,7 @@ def test_admin_role_can_create_venue_via_api(client, app):
 
     with client.session_transaction() as sess:
         sess["user_id"] = 1
-        sess["user_role"] = "admin"  # role_required 'user_role' kullanıyor!
+        sess["user_role"] = "admin"
         sess["user_email"] = "admin_api@test.com"
 
     response = client.post(
@@ -90,7 +88,6 @@ def test_admin_role_can_create_venue_via_api(client, app):
         },
     )
 
-    # API başarılı oluşturmada 201 Created döner
     assert response.status_code == 201
 
     with app.app_context():
