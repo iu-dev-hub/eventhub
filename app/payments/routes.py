@@ -1,5 +1,5 @@
 """Koltuk kilitleme ve ödeme uç noktaları."""
-from flask import jsonify, request
+from flask import jsonify, render_template, request
 
 from app.payments import bp, services
 
@@ -48,3 +48,9 @@ def pay():
     # Görev gereği başarısız ödeme de 200 döner, sonuç success alanındadır
     result = services.process_payment(card_number, amount, seats)
     return jsonify(result), 200
+
+@bp.get("/payments/")
+def payment_page():
+    """Ödeme sayfası (arayüz)."""
+    return render_template("payments/index.html")
+    
