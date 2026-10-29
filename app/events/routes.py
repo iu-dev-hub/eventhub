@@ -80,7 +80,8 @@ def create_venue_ui():
             if capacity_val < 1:
                 raise ValueError
         except ValueError:
-            flash("Kapasite geçerli ve 1'den büyük bir sayı olmalıdır.", "error")
+            # Emircan'ın isteğine göre hata mesajı güncellendi
+            flash("Kapasite en az 1 olan geçerli bir tam sayı olmalıdır.", "error")
             return redirect(url_for("events.create_venue_ui"))
 
         ok, venue_or_error, errors = services.create_venue(get_db(), name, address, capacity_val)
