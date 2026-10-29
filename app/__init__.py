@@ -1,4 +1,3 @@
-
 """EventHub - application factory.
 
 Bu, çalışan en küçük uygulamadır. Modüller (accounts, events, tickets,
@@ -39,11 +38,11 @@ def create_app(test_config: dict | None = None) -> Flask:
     #   app.register_blueprint(tickets_bp)
     # -----------------------------------------------------------------------
     from app.accounts import bp as accounts_bp
+
     app.register_blueprint(accounts_bp)
     from app.events import bp as events_bp
+
     app.register_blueprint(events_bp)
-
-
 
     @app.route("/")
     def home():

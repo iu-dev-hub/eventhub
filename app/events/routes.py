@@ -83,9 +83,7 @@ def create_venue_ui():
             flash("Kapasite geçerli ve 1'den büyük bir sayı olmalıdır.", "error")
             return redirect(url_for("events.create_venue_ui"))
 
-        ok, venue_or_error, errors = services.create_venue(
-            get_db(), name, address, capacity_val
-        )
+        ok, venue_or_error, errors = services.create_venue(get_db(), name, address, capacity_val)
 
         if ok:
             flash("Salon başarıyla kaydedildi.", "success")

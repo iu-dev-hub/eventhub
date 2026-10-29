@@ -460,7 +460,3 @@ def test_role_required_decorator_allows_authorized_role(app):
 
         result = privileged_view()
         assert result == "privileged_ok"
-
-
-
-

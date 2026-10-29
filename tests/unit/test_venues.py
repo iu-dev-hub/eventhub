@@ -22,8 +22,14 @@ def test_valid_venue_is_saved(app):
 
 @pytest.mark.parametrize(
     "name,address,capacity",
-    [("", "Adres", "10"), ("Salon", "", "10"), ("Salon", "Adres", ""),
-     (None, "Adres", "10"), ("   ", "Adres", "10"), ("Salon", "Adres", None)],
+    [
+        ("", "Adres", "10"),
+        ("Salon", "", "10"),
+        ("Salon", "Adres", ""),
+        (None, "Adres", "10"),
+        ("   ", "Adres", "10"),
+        ("Salon", "Adres", None),
+    ],
 )
 def test_missing_fields_rejected(app, name, address, capacity):
     with app.app_context():
