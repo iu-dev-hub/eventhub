@@ -42,16 +42,30 @@ def create():
 
 
 @bp.route("/venues", methods=["GET"])
-def venues():
-    """Kayıtlı salonların listelendiği sayfa."""
+def venues_list_ui():
+    """Kayıtlı salonların listelendiği UI sayfası."""
     venues_list = services.get_all_venues()
     return render_template("events/venues.html", venues=venues_list)
 
 
+@bp.route("/venues", methods=["POST"])
+@role_required("admin")
+def create_venue_api():
+    """Emircan'ın geliştirdiği salon oluşturma API'si (BR-2.1). Yalnızca admin."""
+    data = request.get_json(silent=True) or request.form
+    ok, venue, errors = services.create_venue(
+        get_db(), data.get("name"), data.get("address"), data.get("capacity")
+    )
+    if ok:
+        return jsonify(venue), 201
+    status = 409 if errors == ["Bu isimde bir salon zaten mevcut."] else 400
+    return jsonify({"error": errors[0], "errors": errors}), status
+
+
 @bp.route("/venues/create", methods=["GET", "POST"])
 @role_required("admin")
-def create_venue():
-    """Yeni salon oluşturma sayfası ve formu (BR-2.1). Yalnızca admin."""
+def create_venue_ui():
+    """Yeni salon oluşturma UI sayfası ve formu."""
     if request.method == "POST":
         name = request.form.get("name", "").strip()
         address = request.form.get("address", "").strip()
@@ -59,7 +73,7 @@ def create_venue():
 
         if not name or not address or not capacity:
             flash("Lütfen salon adı, adresi ve kapasitesi alanlarını eksiksiz doldurun.", "error")
-            return redirect(url_for("events.create_venue"))
+            return redirect(url_for("events.create_venue_ui"))
 
         try:
             capacity_val = int(capacity)
@@ -67,7 +81,7 @@ def create_venue():
                 raise ValueError
         except ValueError:
             flash("Kapasite geçerli ve 1'den büyük bir sayı olmalıdır.", "error")
-            return redirect(url_for("events.create_venue"))
+            return redirect(url_for("events.create_venue_ui"))
 
         ok, venue_or_error, errors = services.create_venue(
             get_db(), name, address, capacity_val
@@ -75,11 +89,11 @@ def create_venue():
 
         if ok:
             flash("Salon başarıyla kaydedildi.", "success")
-            return redirect(url_for("events.venues"))
+            return redirect(url_for("events.venues_list_ui"))
         else:
             # Hata mesajını göster
             error_msg = errors[0] if errors else "Bir hata oluştu."
             flash(error_msg, "error")
-            return redirect(url_for("events.create_venue"))
+            return redirect(url_for("events.create_venue_ui"))
 
     return render_template("events/create_venue.html")

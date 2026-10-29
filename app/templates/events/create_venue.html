@@ -8,7 +8,8 @@
         <h1 style="color: #172554; margin-bottom: 10px; text-align: center;">Salon Oluştur</h1>
         <p style="color: #64748B; text-align: center; margin-bottom: 30px;">Sisteme yeni bir etkinlik salonu tanımlamak için bilgileri doldurun.</p>
 
-        <form action="{{ url_for('events.create_venue') }}" method="post">
+        <!-- Yönlendirme adresi create_venue_ui olarak güncellendi -->
+        <form action="{{ url_for('events.create_venue_ui') }}" method="post">
             <div class="form-group" style="margin-bottom: 20px;">
                 <label for="name" style="color: #172554; font-weight: 600; display: block; margin-bottom: 8px;">Salon Adı</label>
                 <input id="name" name="name" type="text" required placeholder="Örn: Merkez Konferans Salonu" style="width: 100%; padding: 12px; border: 1px solid #E2E8F0; border-radius: 8px; box-sizing: border-box; outline-color: #2B3A67;">

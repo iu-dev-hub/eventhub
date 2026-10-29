@@ -6,7 +6,8 @@
 <div style="background-color: #F7F8FC; padding: 40px 20px; min-height: 80vh;">
     <div style="display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto 30px auto;">
         <h1 style="color: #172554; margin: 0;">Kayıtlı Salonlar</h1>
-        <a href="{{ url_for('events.create_venue') }}" style="background-color: #2B3A67; color: white; padding: 10px 20px; text-decoration: none; border-radius: 8px; font-weight: 600;">+ Yeni Salon Ekle</a>
+        <!-- Yönlendirme adresi create_venue_ui olarak güncellendi -->
+        <a href="{{ url_for('events.create_venue_ui') }}" style="background-color: #2B3A67; color: white; padding: 10px 20px; text-decoration: none; border-radius: 8px; font-weight: 600;">+ Yeni Salon Ekle</a>
     </div>
     
     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; max-width: 1200px; margin: 0 auto;">
