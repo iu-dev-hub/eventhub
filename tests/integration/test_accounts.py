@@ -115,7 +115,9 @@ def test_password_not_stored_as_plaintext(client, app):
 
     with app.app_context():
         db = get_db()
-        row = db.execute("SELECT password_hash FROM users WHERE email = ?", (email,)).fetchone()
+        row = db.execute(
+            "SELECT password_hash FROM users WHERE email = ?", (email,)
+        ).fetchone()
 
         assert row is not None
         stored_hash = row["password_hash"]
@@ -560,3 +562,8 @@ def test_admin_status_with_admin_role_returns_200(client, app):
     assert response.status_code == 200
     assert response.get_json()["status"] == "ok"
     assert "onaylandı" in response.get_json()["message"]
+
+
+
+
+
