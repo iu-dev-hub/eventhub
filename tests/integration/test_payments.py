@@ -128,3 +128,7 @@ def test_payment_fails_when_seat_is_already_sold(client):
 
     assert first.get_json()["success"] is True
     assert second.get_json() == {"success": False, "message": "Koltuk zaten satılmış"}
+
+def test_payment_page_opens(client):
+    response = client.get("/payments/")
+    assert response.status_code == 200
