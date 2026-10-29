@@ -1,6 +1,9 @@
-from flask import render_template, request, flash, redirect, url_for
-from app.events import bp
-from app.events import services
+from flask import flash, jsonify, redirect, render_template, request, url_for
+
+from app.accounts.security import role_required
+from app.core.db import get_db
+from app.events import bp, services
+
 
 @bp.route("/")
 def index():
@@ -35,3 +38,16 @@ def create():
             return redirect(url_for("events.create"))
 
     return render_template("events/create.html")
+
+@bp.route("/venues", methods=["POST"])
+@role_required("admin")
+def create_venue():
+    """Salon oluşturur (BR-2.1). Yalnızca admin: oturumsuz 401, diğer roller 403."""
+    data = request.get_json(silent=True) or request.form
+    ok, venue, errors = services.create_venue(
+        get_db(), data.get("name"), data.get("address"), data.get("capacity")
+    )
+    if ok:
+        return jsonify(venue), 201
+    status = 409 if errors == ["Bu isimde bir salon zaten mevcut."] else 400
+    return jsonify({"error": errors[0], "errors": errors}), status
