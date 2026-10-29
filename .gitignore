@@ -12,3 +12,4 @@ test-results/
 .vscode/
 .idea/
 .DS_Store
+payment_logs.json

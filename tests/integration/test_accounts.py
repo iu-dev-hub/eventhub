@@ -240,3 +240,330 @@ def test_register_boundary_passwords_succeed(client):
     assert res20.status_code == 201
 
 
+# ==============================================================================
+# TG-50, TG-51: Giriş (Login), Çıkış (Logout) ve Session Entegrasyon Testleri
+# ==============================================================================
+
+
+def test_login_success_creates_session_and_200(client, app):
+    """TG-50, TG-51: Başarılı giriş 200 dönmeli ve oturum (session) oluşturmalıdır."""
+    # 1. Kullanıcı kaydı yap
+    client.post(
+        "/accounts/register",
+        json={"email": "loginuser@example.com", "password": "Password123", "role": "participant"},
+    )
+
+    # 2. Giriş yap
+    response = client.post(
+        "/accounts/login",
+        json={"email": "loginuser@example.com", "password": "Password123"},
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["message"] == "Giriş başarılı."
+    assert data["user"]["email"] == "loginuser@example.com"
+    assert "id" in data["user"]
+
+    # 3. Session /me endpoint'i ile doğrulanmalı
+    me_resp = client.get("/accounts/me")
+    assert me_resp.status_code == 200
+    me_data = me_resp.get_json()
+    assert me_data["user"]["email"] == "loginuser@example.com"
+
+
+def test_login_form_data_support(client, app):
+    """TG-50: Form verisi (application/x-www-form-urlencoded) ile giriş desteklenmelidir."""
+    client.post(
+        "/accounts/register",
+        json={"email": "formlogin@example.com", "password": "Password123"},
+    )
+
+    response = client.post(
+        "/accounts/login",
+        data={"email": "formlogin@example.com", "password": "Password123"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["user"]["email"] == "formlogin@example.com"
+
+
+def test_login_invalid_password_returns_401(client, app):
+    """TG-50: Hatalı şifre girildiğinde 401 Unauthorized dönmelidir."""
+    client.post(
+        "/accounts/register",
+        json={"email": "authfail@example.com", "password": "Password123"},
+    )
+
+    response = client.post(
+        "/accounts/login",
+        json={"email": "authfail@example.com", "password": "WrongPassword1"},
+    )
+
+    assert response.status_code == 401
+    assert "Geçersiz e-posta veya şifre" in response.get_json()["error"]
+
+
+def test_login_nonexistent_email_returns_401(client, app):
+    """TG-50: Sistemde olmayan e-posta ile giriş denemesi 401 Unauthorized dönmelidir."""
+    response = client.post(
+        "/accounts/login",
+        json={"email": "unknown@example.com", "password": "Password123"},
+    )
+
+    assert response.status_code == 401
+    assert "Geçersiz e-posta veya şifre" in response.get_json()["error"]
+
+
+def test_login_missing_fields_returns_400(client):
+    """TG-50: E-posta veya şifre eksik olduğunda 400 Bad Request dönmelidir."""
+    res1 = client.post("/accounts/login", json={"email": ""})
+    assert res1.status_code == 400
+
+    res2 = client.post("/accounts/login", json={"email": "user@example.com", "password": ""})
+    assert res2.status_code == 400
+
+
+def test_logout_clears_session(client, app):
+    """TG-51: Logout endpoint'i oturumu sonlandırmalı ve /me 401 dönmelidir."""
+    # 1. Kayıt ve giriş
+    client.post(
+        "/accounts/register",
+        json={"email": "logoutuser@example.com", "password": "Password123"},
+    )
+    client.post(
+        "/accounts/login",
+        json={"email": "logoutuser@example.com", "password": "Password123"},
+    )
+
+    # Oturumun aktif olduğunu teyit et
+    assert client.get("/accounts/me").status_code == 200
+
+    # 2. Çıkış yap (logout)
+    logout_resp = client.post("/accounts/logout")
+    assert logout_resp.status_code == 200
+    assert logout_resp.get_json()["message"] == "Oturum başarıyla kapatıldı."
+
+    # 3. Oturum kapandıktan sonra /me çağrısı 401 dönmeli
+    assert client.get("/accounts/me").status_code == 401
+
+
+def test_me_without_session_returns_401(client):
+    """TG-51: Giriş yapılmadan /accounts/me çağrıldığında 401 dönmelidir."""
+    response = client.get("/accounts/me")
+    assert response.status_code == 401
+    assert "Oturum açılmamış" in response.get_json()["error"]
+
+
+def test_me_with_deleted_user_in_session_clears_session_and_returns_401(client, app):
+    """TG-51: Session'daki user_id veritabanında yoksa session temizlenmeli ve 401 dönmelidir."""
+    with client.session_transaction() as sess:
+        sess["user_id"] = 99999
+
+    response = client.get("/accounts/me")
+    assert response.status_code == 401
+    assert "Kullanıcı bulunamadı" in response.get_json()["error"]
+
+
+# ==============================================================================
+# TG-52: Hatalı Giriş ve 401 Unauthorized Hata Kontrolleri Entegrasyon Testleri
+# ==============================================================================
+
+
+def test_login_user_enumeration_prevention_identical_response(client, app):
+    """TG-52: Var olmayan kullanıcı ile yanlış şifre denemesi aynı 401 yanıtını dönmelidir."""
+    client.post(
+        "/accounts/register",
+        json={"email": "existinguser@example.com", "password": "Password123"},
+    )
+
+    # 1. Var olan kullanıcıya yanlış şifre
+    res1 = client.post(
+        "/accounts/login",
+        json={"email": "existinguser@example.com", "password": "WrongPassword123"},
+    )
+    # 2. Var olmayan kullanıcı
+    res2 = client.post(
+        "/accounts/login",
+        json={"email": "nonexistinguser@example.com", "password": "AnyPassword123"},
+    )
+
+    assert res1.status_code == 401
+    assert res2.status_code == 401
+    assert res1.get_json() == res2.get_json()
+    assert res1.get_json()["error"] == "Geçersiz e-posta veya şifre."
+
+
+@pytest.mark.parametrize("whitespace_pass", ["   ", "\t", "  \n  "])
+def test_login_whitespace_only_password_returns_400(client, whitespace_pass):
+    """TG-52: Sadece boşluklardan oluşan şifreler 400 Bad Request dönmelidir."""
+    response = client.post(
+        "/accounts/login",
+        json={"email": "user@example.com", "password": whitespace_pass},
+    )
+    assert response.status_code == 400
+    assert "E-posta ve şifre zorunludur" in response.get_json()["error"]
+
+
+def test_login_sql_injection_attempt_returns_401(client, app):
+    """TG-52: SQL injection payload'u ile giriş denemesi 401 Unauthorized ile reddedilmelidir."""
+    response = client.post(
+        "/accounts/login",
+        json={"email": "' OR 1=1 --", "password": "' OR '1'='1"},
+    )
+    assert response.status_code == 401
+    assert "Geçersiz e-posta veya şifre" in response.get_json()["error"]
+
+
+def test_login_trimmed_whitespace_email_success(client, app):
+    """TG-52: E-posta başındaki/sonundaki boşluklar temizlenerek giriş başarılı olmalıdır."""
+    client.post(
+        "/accounts/register",
+        json={"email": "trimuser@example.com", "password": "Password123"},
+    )
+
+    response = client.post(
+        "/accounts/login",
+        json={"email": "   trimuser@example.com   ", "password": "Password123"},
+    )
+    assert response.status_code == 200
+    assert response.get_json()["user"]["email"] == "trimuser@example.com"
+
+
+# ==============================================================================
+# TG-53: 5 Hatalı Girişte Brute-Force Güvenlik Kilidi Entegrasyon Testleri
+# ==============================================================================
+
+
+def test_login_brute_force_lockout_after_5_failed_attempts(client, app):
+    """TG-53: 5 kez ardışık hatalı şifre girildiğinde hesap
+    429 Too Many Requests ile kilitlenmelidir.
+    """
+    from app.accounts.security import lockout_tracker
+
+    lockout_tracker.clear_all()
+
+    email = "victim@example.com"
+    client.post(
+        "/accounts/register",
+        json={"email": email, "password": "CorrectPassword1"},
+    )
+
+    # 1 - 4. denemeler: 401 dönmeli, kalan deneme sayısı bildirilmeli
+    for attempt in range(1, 5):
+        resp = client.post(
+            "/accounts/login",
+            json={"email": email, "password": "WrongPassword!"},
+        )
+        assert resp.status_code == 401
+        data = resp.get_json()
+        assert data["remaining_attempts"] == (5 - attempt)
+        assert "Geçersiz e-posta veya şifre" in data["error"]
+
+    # 5. deneme: 429 Too Many Requests ile kilitlenmeli
+    resp5 = client.post(
+        "/accounts/login",
+        json={"email": email, "password": "WrongPassword!"},
+    )
+    assert resp5.status_code == 429
+    data5 = resp5.get_json()
+    assert "geçici olarak kilitlendi" in data5["error"]
+    assert data5["remaining_seconds"] > 0
+
+    # 6. deneme (doğru şifre girilse bile kilitli kalmalı)
+    resp6 = client.post(
+        "/accounts/login",
+        json={"email": email, "password": "CorrectPassword1"},
+    )
+    assert resp6.status_code == 429
+    assert "geçici olarak kilitlendi" in resp6.get_json()["error"]
+
+
+def test_login_successful_login_resets_failed_attempts(client, app):
+    """TG-53: Hatalı denemelerin ardından başarılı giriş yapılırsa sayaç sıfırlanmalıdır."""
+    from app.accounts.security import lockout_tracker
+
+    lockout_tracker.clear_all()
+
+    email = "resetflow@example.com"
+    client.post(
+        "/accounts/register",
+        json={"email": email, "password": "CorrectPassword1"},
+    )
+
+    # 3 kez hatalı deneme
+    for _ in range(3):
+        res = client.post(
+            "/accounts/login",
+            json={"email": email, "password": "WrongPassword!"},
+        )
+        assert res.status_code == 401
+
+    # Başarılı giriş -> sayacı sıfırlar
+    success_resp = client.post(
+        "/accounts/login",
+        json={"email": email, "password": "CorrectPassword1"},
+    )
+    assert success_resp.status_code == 200
+
+    # Tekrar hatalı girildiğinde kilitlenmemeli, sıfırdan 4 kalan deneme vermeli
+    again_fail = client.post(
+        "/accounts/login",
+        json={"email": email, "password": "WrongPassword!"},
+    )
+    assert again_fail.status_code == 401
+    assert again_fail.get_json()["remaining_attempts"] == 4
+
+
+# ==============================================================================
+# TG-54: @login_required ve @role_required Entegrasyon Testleri
+# ==============================================================================
+
+
+def test_admin_status_without_login_returns_401(client):
+    """TG-54: Giriş yapılmadan admin endpoint'ine erişildiğinde 401 dönmelidir."""
+    response = client.get("/accounts/admin/status")
+    assert response.status_code == 401
+    assert "Oturum açılmamış" in response.get_json()["error"]
+
+
+def test_admin_status_with_participant_role_returns_403(client, app):
+    """TG-54: Katılımcı rolündeki kullanıcı admin endpoint'ine
+    eriştiğinde 403 Forbidden dönmelidir.
+    """
+    # Katılımcı olarak kaydol ve giriş yap
+    client.post(
+        "/accounts/register",
+        json={"email": "participant@example.com", "password": "Password123", "role": "participant"},
+    )
+    client.post(
+        "/accounts/login",
+        json={"email": "participant@example.com", "password": "Password123"},
+    )
+
+    response = client.get("/accounts/admin/status")
+    assert response.status_code == 403
+    assert "yetkiniz bulunmamaktadır" in response.get_json()["error"]
+
+
+def test_admin_status_with_admin_role_returns_200(client, app):
+    """TG-54: Admin rolündeki kullanıcı admin endpoint'ine eriştiğinde 200 OK dönmelidir."""
+    # Admin olarak kaydol ve giriş yap
+    client.post(
+        "/accounts/register",
+        json={"email": "superadmin@example.com", "password": "Password123", "role": "admin"},
+    )
+    client.post(
+        "/accounts/login",
+        json={"email": "superadmin@example.com", "password": "Password123"},
+    )
+
+    response = client.get("/accounts/admin/status")
+    assert response.status_code == 200
+    assert response.get_json()["status"] == "ok"
+    assert "onaylandı" in response.get_json()["message"]
+
+
+
+
+

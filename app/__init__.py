@@ -20,6 +20,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         SECRET_KEY=os.environ.get("EVENTHUB_SECRET_KEY", "dev-secret-key"),
         DATABASE=os.path.join(app.instance_path, "eventhub.sqlite"),
     )
+
     if test_config:
         app.config.update(test_config)
 
@@ -27,17 +28,23 @@ def create_app(test_config: dict | None = None) -> Flask:
     db.init_app(app)
 
     # --- Module blueprints -------------------------------------------------
-    # Her ekip Sprint 1'de kendi modülünü buraya kaydeder (alfabetik sırayla):
-    #
-    #   from app.tickets import bp as tickets_bp
-    #   app.register_blueprint(tickets_bp)
+    # Her ekip Sprint 1'de kendi modülünü buraya kaydeder (alfabetik sırayla).
     # -----------------------------------------------------------------------
     from app.accounts import bp as accounts_bp
+
     app.register_blueprint(accounts_bp)
+
     from app.events import bp as events_bp
+
     app.register_blueprint(events_bp)
 
+    from app.payments import bp as payments_bp
 
+    app.register_blueprint(payments_bp)
+
+    from app.tickets import bp as tickets_bp
+
+    app.register_blueprint(tickets_bp)
 
     @app.route("/")
     def home():
@@ -49,3 +56,5 @@ def create_app(test_config: dict | None = None) -> Flask:
         return jsonify(status="ok", version=VERSION)
 
     return app
+
+
