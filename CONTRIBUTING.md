@@ -196,6 +196,9 @@ Her ekip Sprint 1'de kendi modülünü ekler. Klasör adları sabittir, çünkü
 | team-events | `app/events/` | `events` | `/events` |
 | team-tickets | `app/tickets/` | `tickets` | `/tickets` |
 | team-payments | `app/payments/` | `payments` | `/payments` |
+| team-mobile | `app/api/` | `api` | `/api` |
+
+Flet istemcisi mobile_client/ klasöründedir ve Flask uygulamasının parçası değildir.
 
 Bir modülde en az şunlar olmalı:
 

@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='tickets.css') }}">
+{% endblock %}
+
+{% block title %}Etkinlik Detayı{% endblock %}
+
+{% block content %}
+<section class="event-detail">
+    <a class="back-link" href="{{ url_for('home') }}">← Ana sayfaya dön</a>
+
+    <div class="event-card">
+        <p class="event-label">ETKİNLİK DETAYI</p>
+        <h1>{{ event.title | default("Etkinlik Adı", true) }}</h1>
+
+        <p class="event-description">
+            {{ event.description | default("Etkinlik hakkında detaylı bilgi burada yer alacaktır.", true) }}
+        </p>
+
+        <div class="event-info">
+            <p>
+                <strong>Tarih:</strong>
+                {{ event.date | default("Henüz belirtilmedi", true) }}
+            </p>
+            <p>
+                <strong>Konum:</strong>
+                {{ event.location | default("Henüz belirtilmedi", true) }}
+            </p>
+        </div>
+
+        <div class="ticket-panel">
+            <div>
+                <p class="ticket-label">Kalan Kontenjan</p>
+                <p class="ticket-count">
+                    {{ event.remaining_tickets | default(0, true) }}
+                    <span>bilet</span>
+                </p>
+            </div>
+
+            {% if event.remaining_tickets | default(0, true) | int > 0 %}
+                <button class="ticket-button" type="button">
+                    Bilet Al
+                </button>
+            {% else %}
+                <button class="ticket-button sold-out" type="button" disabled>
+                    Kontenjan Doldu
+                </button>
+            {% endif %}
+        </div>
+    </div>
+</section>
+<section class="my-tickets" aria-labelledby="my-tickets-title">
+    <div class="my-tickets-header">
+        <p class="event-label">KULLANICI PANELİ</p>
+        <h2 id="my-tickets-title">Biletlerim</h2>
+        <p>Ayırdığınız biletleri ve bilet durumlarını burada görüntüleyebilirsiniz.</p>
+    </div>
+
+    {% set user_tickets = tickets | default([], true) %}
+
+    {% if user_tickets %}
+        <div class="my-tickets-list">
+            {% for ticket in user_tickets %}
+                <article class="user-ticket-card">
+                    <div class="user-ticket-info">
+                        <div>
+                            <p class="ticket-label">ETKİNLİK</p>
+                            <h3>
+                                {{ ticket.event_title | default(event.title | default("Etkinlik Adı", true), true) }}
+                            </h3>
+                        </div>
+
+                        <div class="user-ticket-meta">
+                            <p>
+                                <strong>Bilet No:</strong>
+                                {{ ticket.id | default("Belirtilmedi", true) }}
+                            </p>
+
+                            {% if ticket.qr_code | default("", true) %}
+                                <p>
+                                    <strong>QR kodu:</strong>
+                                    {{ ticket.qr_code }}
+                                </p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="user-ticket-footer">
+                        <div>
+                            <p class="ticket-label">BİLET DURUMU</p>
+
+                            {% if ticket.status == "reserved" %}
+                                <span class="ticket-status status-reserved">
+                                    Ayrıldı (ödeme bekleniyor)
+                                </span>
+                            {% elif ticket.status == "paid" %}
+                                <span class="ticket-status status-paid">
+                                    Geçerli
+                                </span>
+                            {% elif ticket.status == "used" %}
+                                <span class="ticket-status status-used">
+                                    Kullanıldı
+                                </span>
+                            {% elif ticket.status == "refunded" %}
+                                <span class="ticket-status status-refunded">
+                                    İade edildi
+                                </span>
+                            {% elif ticket.status == "cancelled" %}
+                                <span class="ticket-status status-cancelled">
+                                    İptal edildi
+                                </span>
+                            {% else %}
+                                <span class="ticket-status status-unknown">
+                                    Durum bilinmiyor
+                                </span>
+                            {% endif %}
+                        </div>
+
+                        {% if ticket.status == "reserved" or ticket.status == "paid" %}
+                            <button
+                                class="cancel-ticket-button"
+                                type="button"
+                                data-ticket-id="{{ ticket.id | default('', true) }}"
+                                aria-label="Bileti iptal et"
+                            >
+                                Bileti İptal Et
+                            </button>
+                        {% endif %}
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-tickets">
+            <h3>Henüz biletiniz bulunmuyor</h3>
+            <p>Ayırdığınız veya satın aldığınız biletler burada görüntülenecektir.</p>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}
