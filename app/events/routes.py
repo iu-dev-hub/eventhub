@@ -35,3 +35,39 @@ def create():
             return redirect(url_for("events.create"))
 
     return render_template("events/create.html")
+@bp.route("/venues", methods=["GET"])
+def venues():
+    """Kayıtlı salonların listelendiği sayfa."""
+    venues_list = services.get_all_venues() 
+    return render_template("events/venues.html", venues=venues_list)
+
+@bp.route("/venues/create", methods=["GET", "POST"])
+def create_venue():
+    """Yeni salon oluşturma sayfası ve formu."""
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        address = request.form.get("address", "").strip()
+        capacity = request.form.get("capacity", "")
+
+        if not name or not address or not capacity:
+            flash("Lütfen salon adı, adresi ve kapasitesi alanlarını eksiksiz doldurun.", "error")
+            return redirect(url_for("events.create_venue"))
+
+        try:
+            capacity_val = int(capacity)
+            if capacity_val < 1:
+                raise ValueError
+        except ValueError:
+            flash("Kapasite geçerli ve 1'den büyük bir sayı olmalıdır.", "error")
+            return redirect(url_for("events.create_venue"))
+
+        is_valid, message = services.create_venue(name, address, capacity_val)
+        
+        if is_valid:
+            flash("Salon başarıyla kaydedildi.", "success")
+            return redirect(url_for("events.venues"))
+        else:
+            flash(message, "error")
+            return redirect(url_for("events.create_venue"))
+
+    return render_template("events/create_venue.html")

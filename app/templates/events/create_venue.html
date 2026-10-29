@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Yeni Salon Oluştur{% endblock %}
+
+{% block content %}
+<div style="background-color: #F7F8FC; padding: 40px 20px; min-height: 80vh; display: flex; justify-content: center; align-items: flex-start;">
+    <div style="background-color: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 16px; padding: 40px; width: 100%; max-width: 550px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <h1 style="color: #172554; margin-bottom: 10px; text-align: center;">Salon Oluştur</h1>
+        <p style="color: #64748B; text-align: center; margin-bottom: 30px;">Sisteme yeni bir etkinlik salonu tanımlamak için bilgileri doldurun.</p>
+
+        <form action="{{ url_for('events.create_venue') }}" method="post">
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label for="name" style="color: #172554; font-weight: 600; display: block; margin-bottom: 8px;">Salon Adı</label>
+                <input id="name" name="name" type="text" required placeholder="Örn: Merkez Konferans Salonu" style="width: 100%; padding: 12px; border: 1px solid #E2E8F0; border-radius: 8px; box-sizing: border-box; outline-color: #2B3A67;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label for="address" style="color: #172554; font-weight: 600; display: block; margin-bottom: 8px;">Adres</label>
+                <textarea id="address" name="address" required placeholder="Örn: Atatürk Bulvarı No:123, Merkez" rows="3" style="width: 100%; padding: 12px; border: 1px solid #E2E8F0; border-radius: 8px; box-sizing: border-box; outline-color: #2B3A67;"></textarea>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 30px;">
+                <label for="capacity" style="color: #172554; font-weight: 600; display: block; margin-bottom: 8px;">Kapasite</label>
+                <input id="capacity" name="capacity" type="number" min="1" required placeholder="Örn: 500" style="width: 100%; padding: 12px; border: 1px solid #E2E8F0; border-radius: 8px; box-sizing: border-box; outline-color: #2B3A67;">
+            </div>
+
+            <button type="submit" style="width: 100%; background-color: #2B3A67; color: white; padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: 0.2s;">
+                Salonu Kaydet
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
