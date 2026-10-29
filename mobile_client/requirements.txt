@@ -1,3 +1,7 @@
 # Mobil istemcinin bağımlılıkları. Ana requirements.txt dosyasına EKLENMEZ.
 # Spike sırasında çalışan sürümü sabitleyin (ör. flet==X.Y.Z) ve bu satırı güncelleyin.
-flet
+flet>=0.28.0
+qrcode>=7.4.2
+requests>=2.31.0
+fastapi<0.115.0
+uvicorn>=0.30.0

@@ -38,6 +38,10 @@ def create_app(test_config: dict | None = None) -> Flask:
     #   from app.tickets import bp as tickets_bp
     #   app.register_blueprint(tickets_bp)
     # -----------------------------------------------------------------------
+    # API modülü (mobil istemci için JSON uç noktaları - SM Onaylı: TG-67)
+    from app.api import bp as api_bp
+    app.register_blueprint(api_bp)
+
     from app.accounts import bp as accounts_bp
     app.register_blueprint(accounts_bp)
     from app.events import bp as events_bp
