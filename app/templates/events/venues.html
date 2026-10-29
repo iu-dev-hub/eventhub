@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Kayıtlı Salonlar{% endblock %}
+
+{% block content %}
+<div style="background-color: #F7F8FC; padding: 40px 20px; min-height: 80vh;">
+    <div style="display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto 30px auto;">
+        <h1 style="color: #172554; margin: 0;">Kayıtlı Salonlar</h1>
+        <!-- Yönlendirme adresi create_venue_ui olarak güncellendi -->
+        <a href="{{ url_for('events.create_venue_ui') }}" style="background-color: #2B3A67; color: white; padding: 10px 20px; text-decoration: none; border-radius: 8px; font-weight: 600;">+ Yeni Salon Ekle</a>
+    </div>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; max-width: 1200px; margin: 0 auto;">
+        {% for venue in venues %}
+        <div style="background-color: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 16px; padding: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <h3 style="color: #172554; margin-top: 0; margin-bottom: 12px; font-size: 20px;">{{ venue.name }}</h3>
+            <p style="color: #64748B; margin-bottom: 16px; line-height: 1.5;"><strong>Adres:</strong> {{ venue.address }}</p>
+            
+            <div style="display: flex; align-items: center;">
+                <span style="color: #64748B; font-weight: 600; margin-right: 10px;">Kapasite:</span>
+                <span style="background-color: #EEF2FF; color: #2B3A67; padding: 6px 12px; border-radius: 6px; font-weight: bold;">
+                    {{ venue.capacity }} Kişi
+                </span>
+            </div>
+        </div>
+        {% else %}
+        <div style="grid-column: 1 / -1; text-align: center; padding: 50px; background-color: #FFFFFF; border-radius: 16px; border: 1px dashed #E2E8F0;">
+            <p style="color: #64748B; font-size: 16px;">Henüz sisteme kayıtlı bir salon bulunmamaktadır.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

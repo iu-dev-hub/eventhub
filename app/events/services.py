@@ -19,10 +19,12 @@ def validate_event_creation(title, category, venue, start_time, end_time, capaci
     # 3. Mantıksal kontroller (BR-2.2, BR-2.3 vb.)
     if cap_val < 1:
         errors.append("Etkinlik kapasitesi en az 1 olmalıdır.")
-        
+
     if cap_val > hall_capacity:
-        errors.append(f"Etkinlik kapasitesi ({cap_val}), salon kapasitesini ({hall_capacity}) aşamaz.")
-    
+        errors.append(
+            f"Etkinlik kapasitesi ({cap_val}), salon kapasitesini ({hall_capacity}) aşamaz."
+        )
+
     if price_val < 0:
         errors.append("Bilet fiyatı negatif olamaz.")
 
@@ -32,9 +34,12 @@ def validate_event_creation(title, category, venue, start_time, end_time, capaci
     # 4. Başarılı durum ve ücretsiz etkinlik mesajı (TG-22)
     success_msg = "Etkinlik bilgileri doğrulandı. (Kayıt işlemi Sprint 2'de yapılacaktır.)"
     if price_val == 0:
-        success_msg = "Ücretsiz etkinlik doğrulaması başarılı. (Kayıt işlemi Sprint 2'de yapılacaktır.)"
+        success_msg = (
+            "Ücretsiz etkinlik doğrulaması başarılı. (Kayıt işlemi Sprint 2'de yapılacaktır.)"
+        )
 
     return True, [success_msg]
+
 
 MAX_VENUE_NAME_LENGTH = 100
 
@@ -79,3 +84,15 @@ def create_venue(db, name, address, capacity):
     db.commit()
     venue = {"id": cursor.lastrowid, "name": name, "address": address, "capacity": cap_val}
     return True, venue, []
+
+
+def get_all_venues():
+    """Tüm salonları veritabanından çeker ve isme göre sıralı liste olarak döndürür."""
+    from app.core.db import get_db
+
+    db = get_db()
+
+    # try-except bloğu tamamen kaldırıldı, hata oluşursa doğal olarak fırlatılacak.
+    # Emircan'ın isteği üzerine sıralama için ORDER BY name eklendi.
+    venues = db.execute("SELECT id, name, address, capacity FROM venues ORDER BY name").fetchall()
+    return venues
