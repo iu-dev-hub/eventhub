@@ -1,0 +1,34 @@
+{
+  "status": "success",
+  "message": "Kullanıcılar başarıyla listelendi.",
+  "data": [
+    {
+      "id": "usr-101",
+      "name": "Ahmet Yilmaz",
+      "email": "ahmet.yilmaz@example.com",
+      "role": "participant",
+      "is_student": true
+    },
+    {
+      "id": "usr-102",
+      "name":"Elif Demir",
+      "email": "elif.demir@example.com",
+      "role": "participant",
+      "is_student": false
+    },
+    {
+      "id": "usr-103",
+      "name":"Can Ozturk",
+      "email": "can.ozturk@example.com",
+      "role": "participant",
+      "is_student": true
+    },
+    {
+      "id": "usr-104",
+      "name":"Zeynep Kaya",
+      "email": "zeynep.kaya@example.com",
+      "role": "participant",
+      "is_student": false
+    }
+  ]
+}

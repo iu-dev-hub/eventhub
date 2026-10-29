@@ -1,0 +1,34 @@
+{
+  "status": "success",
+  "message": "Organizatörler başarıyla listelendi.",
+  "data": [
+    {
+      "id": "org-201",
+      "company_name": "Tekno Etkinlik A.Ş.",
+      "email": "iletisim@teknoetkinlik.com",
+      "role": "organizer",
+      "is_approved": true
+    },
+    {
+      "id": "org-202",
+      "company_name": "Kreatif Atölyeler Ltd.",
+      "email": "info@kreatifatolye.com",
+      "role": "organizer",
+      "is_approved": false
+    },
+    {
+      "id": "org-203",
+      "company_name": "Anadolu Kültür Sanat Org.",
+      "email": "iletisim@anadolukultur.org",
+      "role": "organizer",
+      "is_approved": true
+    },
+    {
+      "id": "org-204",
+      "company_name": "Gelecek Zirveleri Danışmanlık",
+      "email": "destek@gelecekzirveleri.com",
+      "role": "organizer",
+      "is_approved": false
+    }
+  ]
+}
