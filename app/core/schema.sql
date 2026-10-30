@@ -19,6 +19,15 @@
 --       capacity  INTEGER NOT NULL CHECK (capacity > 0)
 --   );
 
+-- Owner: team-events
+-- BR-2.1: Her salonun adı, adresi ve kapasitesi vardır (salonları yalnızca yöneticiler tanımlar).
+CREATE TABLE IF NOT EXISTS venues (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    name      TEXT    NOT NULL UNIQUE,
+    address   TEXT    NOT NULL,
+    capacity  INTEGER NOT NULL CHECK (capacity > 0)
+);
+
 -- Owner: team-tickets
 CREATE TABLE IF NOT EXISTS tickets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
