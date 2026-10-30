@@ -82,6 +82,47 @@ def lock_seats(seats, event_id=DEFAULT_EVENT_ID, now=None):
         raise
 
 
+def unlock_seats(seats, event_id=DEFAULT_EVENT_ID, now=None):
+    """Kilitli koltukları manuel olarak serbest bırakır.
+
+    Yalnızca 'locked' durumdaki koltuklar serbest bırakılır;
+    'sold' veya 'available' koltuklar değiştirilmez.
+
+    Başarılıysa (True, serbest_bırakılan_koltuklar) döner.
+    Hiç 'locked' koltuk bulunamazsa (False, []) döner.
+    """
+    now = now or datetime.now()
+    db = get_db()
+
+    db.execute("BEGIN IMMEDIATE")
+    try:
+        # Önce süresi dolan kilitleri serbest bırak
+        _release_expired(db, now)
+
+        released = []
+        for code in seats:
+            row = db.execute(
+                "SELECT status FROM seats WHERE event_id = ? AND seat_code = ?",
+                (event_id, code),
+            ).fetchone()
+            # Yalnızca 'locked' olan koltuklar serbest bırakılır
+            if row is not None and row["status"] == "locked":
+                db.execute(
+                    "UPDATE seats SET status = 'available', locked_until = NULL "
+                    "WHERE event_id = ? AND seat_code = ?",
+                    (event_id, code),
+                )
+                released.append(code)
+
+        db.commit()
+        if released:
+            return True, released
+        return False, []
+    except sqlite3.Error:
+        db.rollback()
+        raise
+
+
 def _decide_payment(db, card_number, seats, event_id):
     """Ödeme kurallarını uygular, (success, message) döner.
 
