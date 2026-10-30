@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Misafir Kullanıcı Karşılama{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='accounts.css') }}">
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 960px; margin: 1.5rem auto;">
+  <!-- Misafir Başlık Kartı (Ekran 6 & 7) -->
+  <div class="guest-hero">
+    <div class="guest-badge">
+      <span>👤</span> Misafir Kullanıcı
+    </div>
+    <h1>EventHub'a Hoş Geldiniz!</h1>
+    <p>
+      Etkinlikleri keşfedebilirsiniz. Daha fazla özellikten yararlanmak için giriş yapabilir
+      veya ücretsiz hesap oluşturabilirsiniz.
+    </p>
+  </div>
+
+  <!-- Özellik Kartları (Ekran 6 & 7) -->
+  <div class="feature-cards-grid">
+    <!-- 1. Etkinlikleri Keşfet (Aktif) -->
+    <div class="feature-card">
+      <div class="feature-card-icon">🔍</div>
+      <h3>Etkinlikleri Keşfet</h3>
+      <p>Binlerce etkinliği inceleyin ve yaklaşan organizasyonları takip edin.</p>
+      <div style="margin-top: 1rem;">
+        <a href="{{ url_for('events.index') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">
+          Etkinliklere Git &rarr;
+        </a>
+      </div>
+    </div>
+
+    <!-- 2. Detayları Görüntüle (Aktif) -->
+    <div class="feature-card">
+      <div class="feature-card-icon">📋</div>
+      <h3>Detayları Görüntüle</h3>
+      <p>Etkinlik tarihleri, mekanlar ve kontenjan bilgilerine göz atın.</p>
+      <div style="margin-top: 1rem;">
+        <a href="{{ url_for('events.index') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">
+          Detayları İncele &rarr;
+        </a>
+      </div>
+    </div>
+
+    <!-- 3. Favorilere Ekle (Kilitli / Giriş Gerekli) -->
+    <div class="feature-card locked">
+      <span class="feature-badge-locked">Giriş Gerekli</span>
+      <div class="feature-card-icon">🤍</div>
+      <h3>Favorilere Ekle</h3>
+      <p>Giriş yaparak beğendiğiniz etkinlikleri kişisel listenize kaydedin.</p>
+      <div style="margin-top: 1rem;">
+        <a href="{{ url_for('accounts.login') }}" class="forgot-link" style="font-size: 0.85rem;">
+          Giriş Yaparak Kilidi Aç &rarr;
+        </a>
+      </div>
+    </div>
+
+    <!-- 4. Bilet Al (Kilitli / Giriş Gerekli) -->
+    <div class="feature-card locked">
+      <span class="feature-badge-locked">Giriş Gerekli</span>
+      <div class="feature-card-icon">🎟️</div>
+      <h3>Bilet Al</h3>
+      <p>Bilet satın almak ve rezervasyon yapmak için giriş yapmanız gerekir.</p>
+      <div style="margin-top: 1rem;">
+        <a href="{{ url_for('accounts.login') }}" class="forgot-link" style="font-size: 0.85rem;">
+          Giriş Yap &rarr;
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alt İşlem Butonları (Ekran 6 & 7) -->
+  <div class="guest-bottom-actions">
+    <a href="{{ url_for('accounts.login') }}" class="btn btn-primary" style="min-width: 180px; width: auto;">
+      Giriş Yap &rarr;
+    </a>
+    <a href="{{ url_for('accounts.register') }}" class="btn btn-secondary" style="min-width: 220px; width: auto;">
+      Ücretsiz Hesap Oluştur &rarr;
+    </a>
+  </div>
+</div>
+{% endblock %}

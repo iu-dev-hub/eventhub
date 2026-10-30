@@ -43,14 +43,30 @@ CREATE TABLE IF NOT EXISTS tickets (
 -- FK'si eklendiği için (PRAGMA foreign_keys = ON) init-db tekrar çalıştığında events
 -- kayıtları varken bu DROP FOREIGN KEY hatası veriyordu; diğer tablolar gibi IF NOT EXISTS yapıldı.
 CREATE TABLE IF NOT EXISTS users (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    email         TEXT    NOT NULL UNIQUE,
-    password_hash TEXT    NOT NULL,
-    role          TEXT    NOT NULL DEFAULT 'participant',
-    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    first_name     TEXT    NOT NULL DEFAULT '',
+    last_name      TEXT    NOT NULL DEFAULT '',
+    email          TEXT    NOT NULL UNIQUE,
+    password_hash  TEXT    NOT NULL,
+    role           TEXT    NOT NULL DEFAULT 'participant',
+    is_student     BOOLEAN NOT NULL DEFAULT 0,
+    student_number TEXT    DEFAULT NULL,
+    notify_email   BOOLEAN NOT NULL DEFAULT 1,
+    avatar_url     TEXT    DEFAULT NULL,
+    created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+CREATE TABLE IF NOT EXISTS password_resets (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    token_hash TEXT    NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    used       BOOLEAN NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
 
 -- Owner: team-events
 -- TG-117 / PB-08: Etkinlikler. Yeni etkinlikler 'draft' olarak kaydedilir;
@@ -77,4 +93,3 @@ CREATE TABLE IF NOT EXISTS events (
 
 CREATE INDEX IF NOT EXISTS idx_events_organizer_id ON events(organizer_id);
 CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
-

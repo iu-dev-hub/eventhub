@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Hesap Ayarları{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='accounts.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-layout">
+  <!-- Sol Sidebar -->
+  <aside class="sidebar">
+    <a href="{{ url_for('accounts.dashboard') }}" class="sidebar-link">
+      <span>🏠</span> Ana Sayfa
+    </a>
+    <a href="{{ url_for('accounts.profile') }}" class="sidebar-link">
+      <span>👤</span> Profilim
+    </a>
+    <a href="{{ url_for('accounts.settings') }}" class="sidebar-link active">
+      <span>⚙️</span> Ayarlar
+    </a>
+    <a href="{{ url_for('accounts.logout') }}" class="sidebar-link text-danger" onclick="return confirmLogout(event)">
+      <span>🚪</span> Çıkış Yap
+    </a>
+  </aside>
+
+  <!-- Sağ Ana Alan (Ekran 10 - Ayarlar) -->
+  <div class="dashboard-main">
+    <h1 style="font-size: 1.6rem; color: var(--text-main); margin-bottom: 0.5rem;">
+      Hesap Ayarları
+    </h1>
+    <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: 0; margin-bottom: 1.5rem;">
+      Hesap güvenliğinizi ve tercihlerinizi buradan yönetin.
+    </p>
+
+    <!-- 1. Bölüm: Güvenlik / Şifre Değiştirme (TG-75, PB-08) -->
+    <div class="profile-card" style="margin-bottom: 1.5rem;">
+      <h2 style="font-size: 1.2rem; color: var(--text-main); margin-top: 0; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+        <span>🔒</span> Güvenlik ve Şifre Değiştirme
+      </h2>
+      <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.5rem;">
+        Hesabınızın güvenliği için düzenli olarak güçlü bir şifre belirleyin.
+      </p>
+
+      <div id="password-alert" class="message error" style="display: none; margin-bottom: 1rem;"></div>
+      <div id="password-success" class="message success" style="display: none; margin-bottom: 1rem;"></div>
+
+      <form id="password-form" method="POST" action="{{ url_for('accounts.change_password_route') }}">
+        <div class="form-group">
+          <label for="current_password">Mevcut Şifreniz</label>
+          <input
+            type="password"
+            id="current_password"
+            name="current_password"
+            class="form-control"
+            required
+            autocomplete="current-password"
+          >
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="new_password">Yeni Şifreniz</label>
+            <input
+              type="password"
+              id="new_password"
+              name="new_password"
+              class="form-control"
+              placeholder="En az 8 karakter, harf ve rakam"
+              required
+              autocomplete="new-password"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="new_password_confirm">Yeni Şifrenizi Tekrar Giriniz</label>
+            <input
+              type="password"
+              id="new_password_confirm"
+              name="new_password_confirm"
+              class="form-control"
+              placeholder="Şifreyi doğrulayın"
+              required
+              autocomplete="new-password"
+            >
+          </div>
+        </div>
+
+        <button type="submit" id="change-pwd-btn" class="btn btn-primary" style="width: auto; min-width: 170px;">
+          Şifreyi Güncelle
+        </button>
+      </form>
+    </div>
+
+    <!-- 2. Bölüm: Bildirim Tercihleri (TG-81, PB-14) -->
+    <div class="profile-card">
+      <h2 style="font-size: 1.2rem; color: var(--text-main); margin-top: 0; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+        <span>🔔</span> Bildirim Tercihleri
+      </h2>
+      <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.5rem;">
+        EventHub'tan almak istediğiniz e-posta duyurularını seçin.
+      </p>
+
+      <div id="pref-success" class="message success" style="display: none; margin-bottom: 1rem;"></div>
+
+      <form id="preferences-form" method="POST" action="{{ url_for('accounts.preferences') }}">
+        <div class="form-group">
+          <label class="checkbox-label" for="notify_email" style="font-size: 0.95rem; color: var(--text-main);">
+            <input
+              type="checkbox"
+              id="notify_email"
+              name="notify_email"
+              value="true"
+              {% if user.notify_email %}checked{% endif %}
+            >
+            <span>Etkinlik güncellemeleri ve önemli duyuruları e-posta olarak almak istiyorum.</span>
+          </label>
+        </div>
+
+        <button type="submit" id="pref-submit-btn" class="btn btn-secondary" style="width: auto;">
+          Tercihleri Kaydet
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Çıkış Yap Onay Modalı (Ekran 13) -->
+<div id="logout-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-dialog">
+    <div class="modal-icon-danger">
+      <span>🚪</span>
+    </div>
+    <h2 class="modal-title">Çıkış yapmak istediğinizden emin misiniz?</h2>
+    <p class="modal-desc">Mevcut oturumunuz sonlandırılacaktır.</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-secondary" onclick="closeLogoutModal()">
+        İptal
+      </button>
+      <form method="POST" action="{{ url_for('accounts.logout') }}" style="margin: 0;">
+        <button type="submit" class="btn btn-danger" style="width: 100%;">
+          Çıkış Yap
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function confirmLogout(event) {
+  event.preventDefault();
+  openLogoutModal();
+  return false;
+}
+
+function openLogoutModal() {
+  document.getElementById("logout-modal").style.display = "flex";
+}
+
+function closeLogoutModal() {
+  document.getElementById("logout-modal").style.display = "none";
+}
+
+document.getElementById("password-form").addEventListener("submit", async function(e) {
+  e.preventDefault();
+  const alertEl = document.getElementById("password-alert");
+  const successEl = document.getElementById("password-success");
+  alertEl.style.display = "none";
+  successEl.style.display = "none";
+
+  const current_password = document.getElementById("current_password").value;
+  const new_password = document.getElementById("new_password").value;
+  const new_password_confirm = document.getElementById("new_password_confirm").value;
+
+  if (new_password !== new_password_confirm) {
+    alertEl.textContent = "Girilen yeni şifreler eşleşmiyor.";
+    alertEl.style.display = "block";
+    return;
+  }
+
+  try {
+    const res = await fetch("{{ url_for('accounts.change_password_route') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password, new_password })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      successEl.textContent = data.message || "Şifreniz başarıyla değiştirildi.";
+      successEl.style.display = "block";
+      document.getElementById("password-form").reset();
+    } else {
+      alertEl.textContent = data.error || "Şifre değiştirme başarısız oldu.";
+      alertEl.style.display = "block";
+    }
+  } catch (err) {
+    alertEl.textContent = "Bağlantı hatası oluştu.";
+    alertEl.style.display = "block";
+  }
+});
+
+document.getElementById("preferences-form").addEventListener("submit", async function(e) {
+  e.preventDefault();
+  const successEl = document.getElementById("pref-success");
+  successEl.style.display = "none";
+
+  const notify_email = document.getElementById("notify_email").checked;
+
+  try {
+    const res = await fetch("{{ url_for('accounts.preferences') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notify_email })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      successEl.textContent = data.message || "Bildirim tercihleriniz güncellendi.";
+      successEl.style.display = "block";
+    }
+  } catch (err) {
+    alert("Bağlantı hatası oluştu.");
+  }
+});
+</script>
+{% endblock %}
