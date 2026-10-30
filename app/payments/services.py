@@ -243,3 +243,30 @@ def _export_log(db):
         for row in rows
     ]
     LOG_FILE.write_text(json.dumps(logs, ensure_ascii=False, indent=2), encoding="utf-8")
+
+def get_user_tickets(user_id: int):
+    """Kullanıcının satın aldığı ve rezerve ettiği tüm biletleri döner."""
+    db = get_db()
+    rows = db.execute(
+        "SELECT r.id AS reservation_id, r.ticket_code, r.status, r.created_at, "
+        "r.event_id, p.amount, p.seats "
+        "FROM reservations r "
+        "LEFT JOIN payments p ON r.payment_id = p.id "
+        "WHERE r.user_id = ? "
+        "ORDER BY r.id DESC",
+        (user_id,),
+    ).fetchall()
+    tickets = []
+    for row in rows:
+        seats_data = json.loads(row["seats"]) if row["seats"] else []
+        tickets.append({
+            "reservation_id": row["reservation_id"],
+            "ticket_code": row["ticket_code"],
+            "status": row["status"],
+            "created_at": row["created_at"],
+            "amount": row["amount"],
+            "event_id": row["event_id"],
+            "seats": seats_data,
+        })
+    return tickets
+
