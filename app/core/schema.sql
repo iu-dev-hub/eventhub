@@ -55,10 +55,9 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 -- Owner: team-events
 -- TG-117 / PB-08: Etkinlikler. Yeni etkinlikler 'draft' olarak kaydedilir;
 -- organizer_id -> users.id: Product Owner kararı ve Team Accounts yanıtıyla uyumlu.
--- tickets.event_id -> events.id: Team Tickets ve Team Accounts yanıtlarında desteklendi;
--- nihai entegrasyon Team Events ve Team Tickets tarafından ortaklaşa netleştirilecektir.
--- Planlanan kural (servis katmanı, bu dosyanın kapsamı dışı): draft etkinliklerde bilet
--- işlemleri yapılmaz.
+-- tickets.event_id -> events.id: Team Tickets ve Team Accounts tarafından teyit edildi.
+-- Draft kuralı: draft (published olmayan) etkinliklerde bilet satışı yapılmaz. Team Tickets
+-- bu kontrolü kendi purchase_ticket servisine ekliyor (servis katmanı; bu dosyanın kapsamı dışı).
 -- BR-1.5 (organizatör yönetici onayı) TG-118 kapsamında ayrıca uygulanacaktır;
 -- onay mekanizması bitene kadar taslak oluşturma yalnızca rol kontrolüne bırakılmamalıdır.
 CREATE TABLE IF NOT EXISTS events (
