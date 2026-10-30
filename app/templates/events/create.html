@@ -3,58 +3,86 @@
 {% block title %}Etkinlik Oluştur{% endblock %}
 
 {% block content %}
-<h1>Etkinlik Oluştur</h1>
-<p>Yeni bir etkinlik planlamak için aşağıdaki bilgileri doldurun.</p>
+<div class="container mt-4">
+    <h1>Etkinlik Oluştur</h1>
+    <p>Yeni bir etkinlik planlamak için aşağıdaki bilgileri doldurun.</p>
 
-<form action="{{ url_for('events.create') }}" method="post">
-    <div class="form-group">
-        <label for="title">Etkinlik Başlığı</label>
-        <input id="title" name="title" type="text" required placeholder="Örn: Yazılım Semineri">
-    </div>
+    <!-- Hata ve Başarı Mesajları Alanı -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mb-3">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
 
-    <div class="form-group">
-        <label for="category">Kategori</label>
-        <select id="category" name="category" required>
-            <option value="">Seçiniz</option>
-            <option value="Eğitim">Eğitim</option>
-            <option value="Konser">Konser</option>
-            <option value="Konferans">Konferans</option>
-            <option value="Spor">Spor</option>
-            <option value="Diğer">Diğer</option>
-        </select>
-    </div>
+    <form action="{{ url_for('events.create') }}" method="post">
+        <div class="form-group mb-3">
+            <label for="title">Etkinlik Başlığı</label>
+            <input id="title" name="title" type="text" class="form-control" required placeholder="Örn: Yazılım Semineri">
+        </div>
 
-    <div class="form-group">
-        <label for="venue">Salon</label>
-        <input id="venue" name="venue" type="text" required placeholder="Örn: Salon A">
-    </div>
+        <div class="form-group mb-3">
+            <label for="category">Kategori</label>
+            <select id="category" name="category" class="form-control" required>
+                <option value="">Seçiniz</option>
+                <option value="Eğitim">Eğitim</option>
+                <option value="Konser">Konser</option>
+                <option value="Konferans">Konferans</option>
+                <option value="Spor">Spor</option>
+                <option value="Diğer">Diğer</option>
+            </select>
+        </div>
 
-    <div class="form-group">
-        <label for="start_time">Başlangıç Tarihi ve Saati</label>
-        <input id="start_time" name="start_time" type="datetime-local" required>
-    </div>
+        <!-- Salon Seçim Alanı (Sprint 2 Salon Verileriyle Uyumlu) -->
+        <div class="form-group mb-3">
+            <label for="venue">Salon</label>
+            <select id="venue" name="venue" class="form-control" required>
+                <option value="">Salon Seçiniz</option>
+                {% if venues %}
+                    {% for v in venues %}
+                        <option value="{{ v.name }}">{{ v.name }} (Kapasite: {{ v.capacity }})</option>
+                    {% endfor %}
+                {% else %}
+                    <!-- Fallback / Varsayılan salonlar -->
+                    <option value="Ana Salon">Ana Salon</option>
+                    <option value="Konferans Salonu A">Konferans Salonu A</option>
+                {% endif %}
+            </select>
+        </div>
 
-    <div class="form-group">
-        <label for="end_time">Bitiş Tarihi ve Saati</label>
-        <input id="end_time" name="end_time" type="datetime-local" required>
-    </div>
+        <div class="form-group mb-3">
+            <label for="start_time">Başlangıç Tarihi ve Saati</label>
+            <input id="start_time" name="start_time" type="datetime-local" class="form-control" required>
+        </div>
 
-    <div class="form-group">
-        <label for="capacity">Etkinlik Kapasitesi</label>
-        <input id="capacity" name="capacity" type="number" min="1" required placeholder="Örn: 50">
-    </div>
+        <div class="form-group mb-3">
+            <label for="end_time">Bitiş Tarihi ve Saati</label>
+            <input id="end_time" name="end_time" type="datetime-local" class="form-control" required>
+        </div>
 
-    <div class="form-group">
-        <label for="price">Bilet Fiyatı (TL)</label>
-        <input id="price" name="price" type="number" min="0" required placeholder="0" oninput="checkPrice()">
-        <small id="price_text" class="form-text text-muted">Ücretsiz etkinlikler için 0 giriniz.</small>
-    </div>
+        <div class="form-group mb-3">
+            <label for="capacity">Etkinlik Kapasitesi</label>
+            <input id="capacity" name="capacity" type="number" class="form-control" min="1" required placeholder="Örn: 50">
+        </div>
 
-    <!-- 4. Madde: Buton ismi değişti -->
-    <button type="submit">Kontrol Et</button>
-</form>
+        <div class="form-group mb-3">
+            <label for="price">Bilet Fiyatı (TL)</label>
+            <input id="price" name="price" type="number" class="form-control" min="0" required placeholder="0" oninput="checkPrice()">
+            <small id="price_text" class="form-text text-muted">Ücretsiz etkinlikler için 0 giriniz.</small>
+        </div>
 
-<!-- 5. Madde: 0 TL kontrolü için JS kodu -->
+        <!-- Görev Kriteri: "Taslak Kaydet" Butonu -->
+        <button type="submit" class="btn btn-primary">Taslak Kaydet</button>
+    </form>
+</div>
+
+<!-- 0 TL kontrolü için JS kodu -->
 <script>
 function checkPrice() {
     var priceInput = document.getElementById('price').value;

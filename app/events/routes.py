@@ -38,7 +38,9 @@ def create():
         else:
             return redirect(url_for("events.create"))
 
-    return render_template("events/create.html")
+    # #119 Görev Kriteri: Sprint 2 salon verilerini form sayfasına dinamik olarak gönderiyoruz
+    venues_list = services.get_all_venues()
+    return render_template("events/create.html", venues=venues_list)
 
 
 @bp.route("/venues", methods=["GET"])

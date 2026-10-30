@@ -1,4 +1,5 @@
 """Koltuk kilitleme ve ödeme API'si testleri."""
+
 import json
 from datetime import datetime, timedelta
 
@@ -51,9 +52,14 @@ def test_lock_expires_exactly_after_ten_minutes():
 
 def test_payment_with_4242_card_succeeds_and_seats_become_sold(client):
     client.post("/api/seats/lock", json={"seats": ["A1"]})
-    response = client.post("/api/payment/pay", json={
-        "cardNumber": "4242424242424242", "amount": 100, "seats": ["A1"],
-    })
+    response = client.post(
+        "/api/payment/pay",
+        json={
+            "cardNumber": "4242424242424242",
+            "amount": 100,
+            "seats": ["A1"],
+        },
+    )
     assert response.status_code == 200
     assert response.get_json() == {"success": True, "ticketId": "T12345"}
 
@@ -63,60 +69,101 @@ def test_payment_with_4242_card_succeeds_and_seats_become_sold(client):
 
 
 def test_payment_with_0000_card_fails_with_insufficient_balance(client):
-    response = client.post("/api/payment/pay", json={
-        "cardNumber": "1111111111110000", "amount": 100, "seats": ["B1"],
-    })
+    response = client.post(
+        "/api/payment/pay",
+        json={
+            "cardNumber": "1111111111110000",
+            "amount": 100,
+            "seats": ["B1"],
+        },
+    )
     assert response.status_code == 200
     assert response.get_json() == {"success": False, "message": "Yetersiz bakiye"}
 
 
 def test_every_payment_attempt_is_logged(client):
-    client.post("/api/payment/pay", json={
-        "cardNumber": "4242424242424242", "amount": 100, "seats": ["A1"],
-    })
-    client.post("/api/payment/pay", json={
-        "cardNumber": "1111111111110000", "amount": 100, "seats": ["B1"],
-    })
+    client.post(
+        "/api/payment/pay",
+        json={
+            "cardNumber": "4242424242424242",
+            "amount": 100,
+            "seats": ["A1"],
+        },
+    )
+    client.post(
+        "/api/payment/pay",
+        json={
+            "cardNumber": "1111111111110000",
+            "amount": 100,
+            "seats": ["B1"],
+        },
+    )
     logs = json.loads(services.LOG_FILE.read_text(encoding="utf-8"))
     assert len(logs) == 2
     assert logs[0]["success"] is True
     assert logs[1]["mesaj"] == "Yetersiz bakiye"
 
+
 def test_payment_fails_when_card_is_shorter_than_16_digits(client):
-    response = client.post("/api/payment/pay", json={
-        "cardNumber": "4242", "amount": 100, "seats": ["A1"],
-    })
+    response = client.post(
+        "/api/payment/pay",
+        json={
+            "cardNumber": "4242",
+            "amount": 100,
+            "seats": ["A1"],
+        },
+    )
     assert response.get_json() == {"success": False, "message": "Geçersiz kart"}
 
 
 def test_payment_fails_when_card_has_15_digits(client):
     # Sınır değer: 15 hane reddedilir
-    response = client.post("/api/payment/pay", json={
-        "cardNumber": "424242424242424", "amount": 100, "seats": ["A1"],
-    })
+    response = client.post(
+        "/api/payment/pay",
+        json={
+            "cardNumber": "424242424242424",
+            "amount": 100,
+            "seats": ["A1"],
+        },
+    )
     assert response.get_json()["success"] is False
 
 
 def test_payment_fails_when_card_is_longer_than_16_digits(client):
     # Sınır değer: 17 hane reddedilir
-    response = client.post("/api/payment/pay", json={
-        "cardNumber": "42424242424242424", "amount": 100, "seats": ["A1"],
-    })
+    response = client.post(
+        "/api/payment/pay",
+        json={
+            "cardNumber": "42424242424242424",
+            "amount": 100,
+            "seats": ["A1"],
+        },
+    )
     assert response.get_json()["success"] is False
 
 
 def test_payment_fails_when_card_contains_letters(client):
-    response = client.post("/api/payment/pay", json={
-        "cardNumber": "abc4242", "amount": 100, "seats": ["A1"],
-    })
+    response = client.post(
+        "/api/payment/pay",
+        json={
+            "cardNumber": "abc4242",
+            "amount": 100,
+            "seats": ["A1"],
+        },
+    )
     assert response.get_json()["success"] is False
 
 
 def test_payment_succeeds_when_card_has_exactly_16_digits(client):
     # Sınır değer: tam 16 hane kabul edilir
-    response = client.post("/api/payment/pay", json={
-        "cardNumber": "4242424242424242", "amount": 100, "seats": ["A1"],
-    })
+    response = client.post(
+        "/api/payment/pay",
+        json={
+            "cardNumber": "4242424242424242",
+            "amount": 100,
+            "seats": ["A1"],
+        },
+    )
     assert response.get_json()["success"] is True
 
 
