@@ -5,4 +5,11 @@
 {% block content %}
 <h1>Etkinlikler</h1>
 <p>Events modülünün ana sayfasına hoş geldiniz.</p>
+
+<!-- Yeni eklenen Salonlar yönlendirme butonu -->
+<div style="margin-top: 20px;">
+    <a href="{{ url_for('events.venues_list_ui') }}" style="display: inline-block; padding: 10px 20px; background-color: #2B3A67; color: #FFFFFF; text-decoration: none; border-radius: 12px; font-weight: bold;">
+        Salonları Yönet
+    </a>
+</div>
 {% endblock %}
