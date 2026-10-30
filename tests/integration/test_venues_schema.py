@@ -76,7 +76,8 @@ def test_required_fields_cannot_be_null(app, field):
 def test_other_tables_still_created(app):
     with app.app_context():
         tables = {
-            r["name"] for r in get_db().execute("SELECT name FROM sqlite_master WHERE type='table'")
+            r["name"]
+            for r in get_db().execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
     assert {"users", "tickets", "venues"} <= tables
 

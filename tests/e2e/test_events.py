@@ -21,9 +21,10 @@ def fill_form(page: Page, capacity: str, price: str = "100"):
     page.get_by_label("Etkinlik Başlığı").fill("Yazılım Semineri")
     page.get_by_label("Kategori").select_option("Eğitim")
     
-    # Salon seçimi doğrudan venue_id (value="1") üzerinden yapılıyor
+    # Salon seçimi doğrudan venue_id (value="1") üzerinden yapılıyor ve doğrulanıyor
     venue_select = page.get_by_label("Salon")
     venue_select.select_option(value="1")
+    expect(venue_select).to_have_value("1")
     
     page.get_by_label("Başlangıç Tarihi ve Saati").fill("2026-12-01T10:00")
     page.get_by_label("Bitiş Tarihi ve Saati").fill("2026-12-01T12:00")
