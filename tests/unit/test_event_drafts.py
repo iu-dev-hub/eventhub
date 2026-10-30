@@ -4,6 +4,7 @@ import sqlite3
 
 import pytest
 
+from app.accounts import services as accounts_services
 from app.core.db import get_db
 from app.events.services import (
     EventPermissionError,
@@ -15,22 +16,26 @@ from app.events.services import (
 
 ARGS = ("Seminer", "Eğitim", "Salon A", "2026-12-01T10:00", "2026-12-01T12:00", "50", "100")
 
+# TG-117 main'e birleştirildiğinde init_db() gerçek events tablosunu oluşturur ve
+# aşağıdaki IF NOT EXISTS ifadeleri devreye girmeden doğrudan gerçek şema kullanılır.
+# TG-117 öncesi CI çalışmasında ise TG-117 ile birebir aynı şema kullanılır.
 _EVENTS_DDL = """
 CREATE TABLE IF NOT EXISTS events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    category TEXT NOT NULL,
-    venue_id INTEGER NOT NULL,
-    start_time TEXT NOT NULL,
-    end_time TEXT NOT NULL,
-    capacity INTEGER NOT NULL CHECK (capacity > 0),
-    price REAL NOT NULL DEFAULT 0 CHECK (price >= 0),
-    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'cancelled')),
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    title        TEXT    NOT NULL,
+    category     TEXT    NOT NULL,
+    venue_id     INTEGER NOT NULL,
+    start_time   TEXT    NOT NULL,
+    end_time     TEXT    NOT NULL,
+    capacity     INTEGER NOT NULL CHECK (capacity > 0),
+    price        REAL    NOT NULL DEFAULT 0 CHECK (price >= 0),
+    status       TEXT    NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
     organizer_id INTEGER NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (venue_id) REFERENCES venues(id),
     FOREIGN KEY (organizer_id) REFERENCES users(id)
-)
+);
+CREATE INDEX IF NOT EXISTS idx_events_organizer_id ON events(organizer_id);
+CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
 """
 
 
@@ -38,7 +43,7 @@ CREATE TABLE IF NOT EXISTS events (
 def db(app):
     with app.app_context():
         db = get_db()
-        db.execute(_EVENTS_DDL)
+        db.executescript(_EVENTS_DDL)
         db.execute("INSERT INTO venues (id, name, address, capacity) VALUES (1,'Salon A','A',100)")
         db.execute(
             "INSERT INTO users (id, email, password_hash, role) "
@@ -54,12 +59,51 @@ def approve(db, user_id=1):
     db.commit()
 
 
+def test_events_table_matches_tg117_schema(db):
+    """Testteki events tablosunun TG-117 şemasıyla birebir uyumlu olduğunu doğrular."""
+    cols = [r["name"] for r in db.execute("PRAGMA table_info(events)").fetchall()]
+    assert cols == [
+        "id",
+        "title",
+        "category",
+        "venue_id",
+        "start_time",
+        "end_time",
+        "capacity",
+        "price",
+        "status",
+        "organizer_id",
+    ]
+    with pytest.raises(sqlite3.IntegrityError):
+        db.execute(
+            "INSERT INTO events (title, category, venue_id, start_time, end_time, "
+            "capacity, price, status, organizer_id) "
+            "VALUES ('T', 'K', 1, '2026-12-01T10:00', '2026-12-01T12:00', 10, 0, 'cancelled', 1)"
+        )
+
+
 def test_without_approval_mechanism_access_is_closed(db):
     """Accounts'ta onay sütunu yokken organizer rolü bile yetki vermez (güvenli varsayılan)."""
     assert is_approved_organizer(1, db) is False
     with pytest.raises(EventPermissionError):
         create_draft_event(db, 1, *ARGS)
     assert db.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 0
+
+
+def test_delegates_to_accounts_approval_service_when_available(db, monkeypatch):
+    """Accounts kalıcı onay servisi eklendiğinde yetki kontrolü doğrudan ona delege edilir."""
+    calls = []
+
+    def fake_accounts_approval(user_id, passed_db=None):
+        calls.append(user_id)
+        return user_id == 1
+
+    monkeypatch.setattr(
+        accounts_services, "is_approved_organizer", fake_accounts_approval, raising=False
+    )
+    assert is_approved_organizer(1, db) is True
+    assert is_approved_organizer(2, db) is False
+    assert calls == [1, 2]
 
 
 def test_unapproved_organizer_is_denied(db):

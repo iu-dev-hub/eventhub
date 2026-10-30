@@ -120,20 +120,22 @@ _DB_ERROR_MSG = "Etkinlik kaydedilirken bir veritabanı hatası oluştu. Lütfen
 def is_approved_organizer(user_id: int, db=None) -> bool:
     """Kullanıcının yönetici onaylı organizatör olup olmadığını döndürür (BR-1.5, TG-118).
 
-    Accounts modülünde kalıcı `is_approved_organizer` servisi tanımlıysa doğrudan ona
-    delege eder. Henüz tanımlı değilse `users.organizer_approved` sütununu kontrol eder;
-    sütun şemada bulunmuyorsa veya değeri boşsa güvenli varsayılan olarak False döner.
+    Güvenli varsayılan: Accounts ekibinin kalıcı organizatör onay mekanizması henüz
+    tamamlanmadığından, `app.accounts.services.is_approved_organizer` tanımlı değilse ve
+    `users.organizer_approved` sütunu şemada yoksa her zaman False döner (yetki reddedilir).
+    Accounts servisi eklendiğinde doğrulama doğrudan o servise delege edilir.
     """
-    accounts_checker = getattr(accounts_services, "is_approved_organizer", None)
-    if callable(accounts_checker):
-        return bool(accounts_checker(user_id, db))
-
     if not user_id or isinstance(user_id, bool) or not isinstance(user_id, int):
         return False
     if db is None:
         from app.core.db import get_db
 
         db = get_db()
+
+    accounts_checker = getattr(accounts_services, "is_approved_organizer", None)
+    if callable(accounts_checker):
+        return bool(accounts_checker(user_id, db))
+
     columns = {r["name"] for r in db.execute("PRAGMA table_info(users)").fetchall()}
     if ORGANIZER_APPROVAL_COLUMN not in columns:
         return False
