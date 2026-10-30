@@ -39,8 +39,10 @@ CREATE TABLE IF NOT EXISTS tickets (
     FOREIGN KEY (event_id) REFERENCES events(id)
 );
 -- Owner: team-accounts
-DROP TABLE IF EXISTS users;
-CREATE TABLE users (
+-- NOT: Eskiden burada DROP TABLE IF EXISTS users vardı. events.organizer_id -> users.id
+-- FK'si eklendiği için (PRAGMA foreign_keys = ON) init-db tekrar çalıştığında events
+-- kayıtları varken bu DROP FOREIGN KEY hatası veriyordu; diğer tablolar gibi IF NOT EXISTS yapıldı.
+CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     email         TEXT    NOT NULL UNIQUE,
     password_hash TEXT    NOT NULL,
@@ -52,9 +54,11 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 -- Owner: team-events
 -- TG-117 / PB-08: Etkinlikler. Yeni etkinlikler 'draft' olarak kaydedilir;
--- organizer_id -> users.id (Accounts onaylı); tickets.event_id -> events.id
--- (Tickets onaylı, FOREIGN KEY tickets tablosunda tanımlıdır).
--- Servis katmanı: draft etkinliklerde bilet oluşturma/rezervasyon/satış engellenir.
+-- organizer_id -> users.id: Product Owner kararı ve Team Accounts yanıtıyla uyumlu.
+-- tickets.event_id -> events.id: Team Tickets ve Team Accounts yanıtlarında desteklendi;
+-- nihai entegrasyon Team Events ve Team Tickets tarafından ortaklaşa netleştirilecektir.
+-- Planlanan kural (servis katmanı, bu dosyanın kapsamı dışı): draft etkinliklerde bilet
+-- işlemleri yapılmaz.
 -- BR-1.5 (organizatör yönetici onayı) TG-118 kapsamında ayrıca uygulanacaktır;
 -- onay mekanizması bitene kadar taslak oluşturma yalnızca rol kontrolüne bırakılmamalıdır.
 CREATE TABLE IF NOT EXISTS events (
