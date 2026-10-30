@@ -34,6 +34,42 @@ def get_remaining_capacity(event_id: int) -> int:
     remaining = event_capacity - active_tickets
     return max(0, remaining)
 
+def purchase_ticket(event_id: int, user_id: int) -> int:
+    """Etkinlik için bilet satın alır; kontenjan doluysa hata fırlatır (BR-3.2)."""
+    db = get_db()
+    
+    # Kontenjan kontrolü (Kalan kontenjan 0 veya daha azsa engelle)
+    remaining = get_remaining_capacity(event_id)
+    if remaining <= 0:
+        raise ValueError("Kontenjan dolu. Bilet satın alınamadı.")
+        
+    # Yeni bilet kaydı oluştur (aktif statüde: paid)
+    cursor = db.execute(
+        """
+        INSERT INTO tickets (event_id, user_id, status, created_at)
+        VALUES (?, ?, ?, datetime('now'))
+        """,
+        (event_id, user_id, "paid")
+    )
+    db.commit()
+    return cursor.lastrowid
+
+def cancel_ticket(ticket_id: int) -> None:
+    """Bilet durumunu cancelled yaparak kontenjanı serbest bırakır."""
+    db = get_db()
+
+    #Biletin varlığı ve mevcut durum kontrolü
+    ticket_row = db.execute(
+        "SELECT status FROM tickets WHERE id = ?", (ticket_id,)
+    ).fetchone()
+
+    if not ticket_row:
+        raise ValueError("Bilet bulunamadı.")
+
+    if ticket_row["status"]==CANCELLED_STATUS:
+        raise ValueError("Bu bilet zaten iptal edilmiş.")
+
+    #Durumu iptal olarak güncelle
 def cancel_ticket(ticket_id: int) -> None:
     """Bilet durumunu iptal olarak günceller."""
     db = get_db()

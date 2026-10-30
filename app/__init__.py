@@ -1,4 +1,3 @@
-
 """EventHub - application factory.
 
 Bu, çalışan en küçük uygulamadır. Modüller (accounts, events, tickets,
@@ -28,26 +27,29 @@ def create_app(test_config: dict | None = None) -> Flask:
     os.makedirs(app.instance_path, exist_ok=True)
     db.init_app(app)
 
-    # Tickets modülünü uygulamaya kaydet.
+    # --- Module blueprints -------------------------------------------------
+    # Her ekip Sprint 1'de kendi modülünü buraya kaydeder (alfabetik sırayla).
+    # -----------------------------------------------------------------------
+    from app.accounts import bp as accounts_bp
+
+    app.register_blueprint(accounts_bp)
+
+    # API modülü (mobil istemci için JSON uç noktaları - SM Onaylı: TG-67)
+    from app.api import bp as api_bp
+
+    app.register_blueprint(api_bp)
+
+    from app.events import bp as events_bp
+
+    app.register_blueprint(events_bp)
+
+    from app.payments import bp as payments_bp
+
+    app.register_blueprint(payments_bp)
+
     from app.tickets import bp as tickets_bp
 
     app.register_blueprint(tickets_bp)
-    # --- Module blueprints -------------------------------------------------
-    # Her ekip Sprint 1'de kendi modülünü buraya kaydeder (alfabetik sırayla):
-    #
-    #   from app.tickets import bp as tickets_bp
-    #   app.register_blueprint(tickets_bp)
-    # -----------------------------------------------------------------------
-    # API modülü (mobil istemci için JSON uç noktaları - SM Onaylı: TG-67)
-    from app.api import bp as api_bp
-    app.register_blueprint(api_bp)
-
-    from app.accounts import bp as accounts_bp
-    app.register_blueprint(accounts_bp)
-    from app.events import bp as events_bp
-    app.register_blueprint(events_bp)
-
-
 
     @app.route("/")
     def home():
