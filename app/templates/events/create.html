@@ -39,19 +39,17 @@
             </select>
         </div>
 
-        <!-- Salon Seçim Alanı (Sprint 2 Salon Verileriyle Uyumlu) -->
+        <!-- Salon Seçim Alanı (TG-117 / TG-118 ve Veritabanı Uyumluluğu) -->
         <div class="form-group mb-3">
-            <label for="venue">Salon</label>
-            <select id="venue" name="venue" class="form-control" required>
-                <option value="">Salon Seçiniz</option>
+            <label for="venue">Salon <span class="text-danger">*</span></label>
+            <select id="venue" name="venue_id" class="form-control" required>
                 {% if venues %}
+                    <option value="" disabled selected>Salon Seçiniz...</option>
                     {% for v in venues %}
-                        <option value="{{ v.name }}">{{ v.name }} (Kapasite: {{ v.capacity }})</option>
+                        <option value="{{ v.id }}">{{ v.name }} (Kapasite: {{ v.capacity }})</option>
                     {% endfor %}
                 {% else %}
-                    <!-- Fallback / Varsayılan salonlar -->
-                    <option value="Ana Salon">Ana Salon</option>
-                    <option value="Konferans Salonu A">Konferans Salonu A</option>
+                    <option value="" disabled selected>Sistemde kayıtlı salon bulunamadı. Lütfen önce salon ekleyin.</option>
                 {% endif %}
             </select>
         </div>
@@ -77,7 +75,7 @@
             <small id="price_text" class="form-text text-muted">Ücretsiz etkinlikler için 0 giriniz.</small>
         </div>
 
-        <!-- Görev Kriteri: "Taslak Kaydet" Butonu -->
+        <!-- Görev Kriteri: "Taslak Kaydet" Butonu (TG-118 Taslak Kayıt / Validasyon Altyapısı) -->
         <button type="submit" class="btn btn-primary">Taslak Kaydet</button>
     </form>
 </div>

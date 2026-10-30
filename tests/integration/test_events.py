@@ -1,3 +1,5 @@
+from app.core.db import get_db
+
 def test_events_index_page_loads(client):
     """Events ana sayfasının HTTP 200 yanıtı verdiğini doğrular."""
     response = client.get("/events/")
@@ -14,16 +16,24 @@ def test_create_event_page_loads(client):
     assert "Etkinlik Oluştur" in html
     assert 'for="capacity"' in html  # Label var mı?
     assert 'name="title"' in html  # Input var mı?
-    assert "Taslak Kaydet" in html  # Buton adı güncellendi
+    assert "Taslak Kaydet" in html  # Buton var mı?
 
 
 def test_event_creation_success(client):
     """Kapasite sınırları içinde (50 ve 100) geçerli kayıt testleri."""
-    # Formun yeni zorunlu alanları için geçerli örnek veri seti
+    with client.application.app_context():
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute("INSERT OR IGNORE INTO venues (name, address, capacity) VALUES (?, ?, ?)", ("Test Salonu", "Ankara", 100))
+        db.commit()
+        cursor.execute("SELECT id FROM venues WHERE name = ?", ("Test Salonu",))
+        row = cursor.fetchone()
+        venue_id = row[0] if row else 1
+
     valid_data = {
         "title": "Konser",
         "category": "Konser",
-        "venue": "Salon A",
+        "venue_id": str(venue_id),
         "start_time": "2026-12-01T20:00",
         "end_time": "2026-12-01T23:00",
     }
@@ -43,10 +53,19 @@ def test_event_creation_success(client):
 
 def test_event_creation_capacity_exceeded(client):
     """Kapasite 100'ü aştığında (101) hata dönmelidir."""
+    with client.application.app_context():
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute("INSERT OR IGNORE INTO venues (name, address, capacity) VALUES (?, ?, ?)", ("Test Salonu", "Ankara", 100))
+        db.commit()
+        cursor.execute("SELECT id FROM venues WHERE name = ?", ("Test Salonu",))
+        row = cursor.fetchone()
+        venue_id = row[0] if row else 1
+
     data = {
         "title": "Büyük Konser",
         "category": "Konser",
-        "venue": "Salon A",
+        "venue_id": str(venue_id),
         "start_time": "2026-12-01T20:00",
         "end_time": "2026-12-01T23:00",
         "capacity": "101",
@@ -58,7 +77,6 @@ def test_event_creation_capacity_exceeded(client):
 
 def test_event_creation_missing_fields(client):
     """Zorunlu alanlar eksik olduğunda hata dönmelidir."""
-    # Sadece 2 alan gönderip diğerlerini bilerek boş bırakıyoruz
     response = client.post(
         "/events/create", data={"capacity": "50", "price": ""}, follow_redirects=True
     )

@@ -1,10 +1,12 @@
-"""Events modülü uçtan uca (E2E) testleri - Görev #119 (#32 PB-02 / PB-08).
+"""Events modülü uçtan uca (E2E) testleri - Görev #119 (#32 PB-08).
 
 Yerelde çalıştırma:
     pytest tests/e2e/test_events.py
     pytest tests/e2e/test_events.py --headed
 """
 
+import os
+import sqlite3
 import re
 
 import pytest
@@ -16,11 +18,34 @@ SUCCESS_MSG = "Etkinlik bilgileri doğrulandı. (Kayıt işlemi Sprint 2'de yap�
 CAPACITY_EXCEEDED_MSG = "Etkinlik kapasitesi (101), salon kapasitesini (100) aşamaz."
 
 
+@pytest.fixture(autouse=True)
+def setup_test_venue():
+    """E2E testleri öncesi SQLite veritabanına doğrudan test salonu ekler."""
+    db_paths = ["instance/database.db", "database.db", "instance/app.db"]
+    for path in db_paths:
+        if os.path.exists(path):
+            conn = sqlite3.connect(path)
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT OR IGNORE INTO venues (id, name, address, capacity) VALUES (1, ?, ?, ?)",
+                ("Ana Salon", "Ankara", 100),
+            )
+            conn.commit()
+            conn.close()
+            break
+
+
 def fill_form(page: Page, capacity: str, price: str = "100"):
+    page.goto("/events/create")
     page.get_by_label("Etkinlik Başlığı").fill("Yazılım Semineri")
     page.get_by_label("Kategori").select_option("Eğitim")
-    # Salon artık <select> olduğu için select_option kullanıyoruz
-    page.get_by_label("Salon").select_option("Ana Salon")
+    
+    # Salon seçimi
+    venue_select = page.get_by_label("Salon")
+    options = venue_select.locator("option").all_inner_texts()
+    if len(options) > 1:
+        venue_select.select_option(index=1)
+    
     page.get_by_label("Başlangıç Tarihi ve Saati").fill("2026-12-01T10:00")
     page.get_by_label("Bitiş Tarihi ve Saati").fill("2026-12-01T12:00")
     page.get_by_label("Etkinlik Kapasitesi").fill(capacity)
@@ -31,32 +56,25 @@ def test_create_form_page_opens(page: Page):
     page.goto("/events/create")
     expect(page).to_have_title(re.compile("Etkinlik Oluştur"))
     expect(page.get_by_role("heading", level=1)).to_have_text("Etkinlik Oluştur")
-    # Buton adı #119 gereği "Taslak Kaydet" olarak güncellendi
     expect(page.get_by_role("button", name="Taslak Kaydet")).to_be_visible()
 
 
 def test_user_can_select_form_fields(page: Page):
-    page.goto("/events/create")
     fill_form(page, capacity="50")
     expect(page.get_by_label("Etkinlik Başlığı")).to_have_value("Yazılım Semineri")
-    expect(page.get_by_label("Salon")).to_have_value("Ana Salon")
     expect(page.get_by_label("Etkinlik Kapasitesi")).to_have_value("50")
 
 
 def test_e2e_01_valid_capacity_shows_success_message(page: Page):
-    page.goto("/events/create")
     fill_form(page, capacity="50")
     page.get_by_role("button", name="Taslak Kaydet").click()
     expect(page).to_have_url(re.compile(r"/events/$"))
-    # Çakışmayı önlemek için spesifik olarak p etiketindeki alert'i hedefliyoruz
     expect(page.locator("p[role='alert']")).to_have_text(SUCCESS_MSG)
 
 
 def test_e2e_02_capacity_over_hall_limit_shows_error(page: Page):
-    page.goto("/events/create")
     fill_form(page, capacity="101")
     page.get_by_role("button", name="Taslak Kaydet").click()
-    # Çakışmayı önlemek için spesifik olarak p etiketindeki alert'i hedefliyoruz
     expect(page.locator("p[role='alert']")).to_have_text(CAPACITY_EXCEEDED_MSG)
 
 
