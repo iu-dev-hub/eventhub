@@ -1,0 +1,96 @@
+{
+  "status": "success",
+  "message": "Etkinlikler başarıyla listelendi.",
+  "data": [
+    {
+      "id": "evt-001",
+      "title": "Yapay Zeka Zirvesi 2026",
+      "category": "Teknoloji",
+      "venue": {
+        "name": "Anadolu Kongre Merkezi",
+        "address": "Çankaya, Ankara",
+        "capacity": 500
+      },
+      "starts_at": "2026-06-15T10:00:00Z",
+      "ends_at": "2026-06-15T17:00:00Z",
+      "capacity": 450,
+      "price": 150.00,
+      "status": "published"
+    },
+    {
+      "id": "evt-002",
+      "title": "Dijital Pazarlama Atölyesi",
+      "category": "İş Dünyası",
+      "venue": {
+        "name": "İnovasyon Sahnesi",
+        "address": "Kadıköy, İstanbul",
+        "capacity": 100
+      },
+      "starts_at": "2026-06-20T14:00:00Z",
+      "ends_at": "2026-06-20T18:00:00Z",
+      "capacity": 100,
+      "price": 0.00,
+      "status": "published"
+    },
+    {
+      "id": "evt-003",
+      "title": "Girişimcilik ve Finans Buluşması",
+      "category": "Finans",
+      "venue": {
+        "name": "Grand Hall",
+        "address": "Şişli, İstanbul",
+        "capacity": 300
+      },
+      "starts_at": "2026-07-01T09:30:00Z",
+      "ends_at": "2026-07-01T16:30:00Z",
+      "capacity": 250,
+      "price": 250.00,
+      "status": "draft"
+    },
+    {
+      "id": "evt-004",
+      "title": "Siber Güvenlik Temelleri",
+      "category": "Teknoloji",
+      "venue": {
+        "name": "Cyber Park Konferans Salonu",
+        "address": "ODTÜ Teknokent, Ankara",
+        "capacity": 150
+      },
+      "starts_at": "2026-05-10T11:00:00Z",
+      "ends_at": "2026-05-10T15:00:00Z",
+      "capacity": 150,
+      "price": 75.50,
+      "status": "completed"
+    },
+    {
+      "id": "evt-005",
+      "title": "Açık Hava Sinema Geceleri",
+      "category": "Sanat",
+      "venue": {
+        "name": "Kültür Park Amfi Tiyatro",
+        "address": "Konak, İzmir",
+        "capacity": 1000
+      },
+      "starts_at": "2026-06-25T20:00:00Z",
+      "ends_at": "2026-06-25T23:30:00Z",
+      "capacity": 800,
+      "price": 50.00,
+      "status": "sales_closed"
+    },
+    {
+      "id": "evt-006",
+      "title": "Mobil Uygulama Test Uzmanlığı Eğitimi",
+      "category": "Eğitim",
+      "venue": {
+        "name": "Tech Hub",
+        "address": "Beşiktaş, İstanbul",
+        "capacity": 80
+      },
+      "starts_at": "2026-07-10T09:00:00Z",
+      "ends_at": "2026-07-10T17:00:00Z",
+      "capacity": 80,
+      "price": 300.00,
+      "status": "cancelled"
+    }
+  ]
+}

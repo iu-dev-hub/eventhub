@@ -1,0 +1,38 @@
+{
+  "status": "success",
+  "message": "Biletler başarıyla listelendi.",
+  "data": [
+    {
+      "id": "tkt-901",
+      "event_id": "evt-001",
+      "user_id": "usr-101",
+      "qr_code": "EH-QR-2026-901X",
+      "status": "paid",
+      "price_paid": 112.50
+    },
+    {
+      "id": "tkt-902",
+      "event_id": "evt-002",
+      "user_id": "usr-102",
+      "qr_code": "EH-QR-2026-902Y",
+      "status": "used",
+      "price_paid": 0.00
+    },
+    {
+      "id": "tkt-903",
+      "event_id": "evt-001",
+      "user_id": "usr-103",
+      "qr_code": "EH-QR-2026-903Z",
+      "status": "reserved",
+      "price_paid": 150.00
+    },
+    {
+      "id": "tkt-904",
+      "event_id": "evt-004",
+      "user_id": "usr-104",
+      "qr_code": "EH-QR-2026-904W",
+      "status": "refunded",
+      "price_paid": 75.50
+    }
+  ]
+}
