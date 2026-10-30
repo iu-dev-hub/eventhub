@@ -1,7 +1,7 @@
 """Koltuk kilitleme ve ödeme uç noktaları."""
 import sqlite3
 
-from flask import current_app, jsonify, request
+from flask import current_app, jsonify, render_template, request
 
 from app.payments import bp, services
 
@@ -108,3 +108,9 @@ def handle_database_error(error):
         "success": False,
         "message": "Veritabanı hatası, lütfen tekrar deneyin.",
     }), 500
+
+
+@bp.get("/payments/")
+def payment_page():
+    """Ödeme sayfası (arayüz)."""
+    return render_template("payments/index.html")
