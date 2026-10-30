@@ -21,11 +21,9 @@ def fill_form(page: Page, capacity: str, price: str = "100"):
     page.get_by_label("Etkinlik Başlığı").fill("Yazılım Semineri")
     page.get_by_label("Kategori").select_option("Eğitim")
     
-    # Salon seçimi (<select name="venue_id">) - conftest üzerinden eklenen test salonu seçiliyor
+    # Salon seçimi doğrudan venue_id (value="1") üzerinden yapılıyor
     venue_select = page.get_by_label("Salon")
-    options = venue_select.locator("option").all_inner_texts()
-    if len(options) > 1:
-        venue_select.select_option(index=1)
+    venue_select.select_option(value="1")
     
     page.get_by_label("Başlangıç Tarihi ve Saati").fill("2026-12-01T10:00")
     page.get_by_label("Bitiş Tarihi ve Saati").fill("2026-12-01T12:00")
