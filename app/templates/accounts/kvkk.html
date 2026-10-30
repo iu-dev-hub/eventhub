@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}KVKK Aydınlatma Metni{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='accounts.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="legal-card">
+  <div class="legal-header">
+    <span class="legal-demo-badge">DEMO TASLAĞI</span>
+    <h1 style="font-size: 1.8rem; margin: 0 0 0.5rem 0; color: var(--text-main);">
+      KVKK Aydınlatma Metni
+    </h1>
+    <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">
+      6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamında kişisel verilerinizin işlenmesine ilişkin bilgilendirme.
+    </p>
+  </div>
+
+  <div class="legal-section">
+    <h3>Veri Sorumlusu</h3>
+    <p>
+      EventHub Projesi (Iğdır Üniversitesi Yazılım Mühendisliği 4. Sınıf Yazılım Sınama ve Doğrulama Dersi Ekibi)
+      tarafından veri sorumlusu sıfatıyla kişisel verileriniz işlenmektedir.
+    </p>
+  </div>
+
+  <div class="legal-section">
+    <h3>İşlenen Kişisel Veriler</h3>
+    <p>
+      Kimlik Bilgileri (Ad, Soyad), İletişim Bilgileri (E-posta), İşlem Güvenliği Bilgileri (Parola Özeti, Oturum Kayıtları)
+      ve İsteğe Bağlı Öğrenci Durum Bilgisi işlenmektedir.
+    </p>
+  </div>
+
+  <div class="legal-section">
+    <h3>Kişisel Verilerin Toplanma Yöntemi ve Hukuki Sebebi</h3>
+    <p>
+      Verileriniz elektronik ortamda, kayıt ve profil güncelleme formları vasıtasıyla ve açık rızanız doğrultusunda
+      toplanmaktadır.
+    </p>
+  </div>
+
+  <div style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+    <a href="{{ url_for('accounts.terms') }}" class="forgot-link">&larr; Kullanım Koşulları</a>
+    <a href="{{ url_for('accounts.register') }}" class="btn btn-secondary" style="width: auto;">Kayıt Ekranına Dön</a>
+  </div>
+</div>
+{% endblock %}

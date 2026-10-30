@@ -5,8 +5,6 @@ Yerelde çalıştırma:
     pytest tests/e2e/test_events.py --headed
 """
 
-import os
-import sqlite3
 import re
 
 import pytest
@@ -18,29 +16,12 @@ SUCCESS_MSG = "Etkinlik bilgileri doğrulandı. (Kayıt işlemi Sprint 2'de yap�
 CAPACITY_EXCEEDED_MSG = "Etkinlik kapasitesi (101), salon kapasitesini (100) aşamaz."
 
 
-@pytest.fixture(autouse=True)
-def setup_test_venue():
-    """E2E testleri öncesi SQLite veritabanına doğrudan test salonu ekler."""
-    db_paths = ["instance/database.db", "database.db", "instance/app.db"]
-    for path in db_paths:
-        if os.path.exists(path):
-            conn = sqlite3.connect(path)
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT OR IGNORE INTO venues (id, name, address, capacity) VALUES (1, ?, ?, ?)",
-                ("Ana Salon", "Ankara", 100),
-            )
-            conn.commit()
-            conn.close()
-            break
-
-
 def fill_form(page: Page, capacity: str, price: str = "100"):
     page.goto("/events/create")
     page.get_by_label("Etkinlik Başlığı").fill("Yazılım Semineri")
     page.get_by_label("Kategori").select_option("Eğitim")
     
-    # Salon seçimi
+    # Salon seçimi (<select name="venue_id">) - conftest üzerinden eklenen test salonu seçiliyor
     venue_select = page.get_by_label("Salon")
     options = venue_select.locator("option").all_inner_texts()
     if len(options) > 1:
