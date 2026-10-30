@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from app import create_app
-from app.core.db import get_db, init_db
+from app.core.db import init_db
 from app.payments import services
 
 

@@ -218,4 +218,3 @@ def _export_log(db):
     LOG_FILE.write_text(
         json.dumps(logs, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    
