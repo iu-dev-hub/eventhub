@@ -1,4 +1,4 @@
-"""tickets.event_id -> events.id FK'sinin temiz ve eski veritabanlarında oluştuğunu doğrular (TG-117)."""
+"""tickets.event_id -> events.id FK'sinin temiz ve eski DB'lerde oluştuğunu doğrular (TG-117)."""
 
 import sqlite3
 
@@ -20,14 +20,14 @@ CREATE TABLE tickets (
 
 
 def _fk_targets(db):
-    return {(r["from"], r["table"], r["to"]) for r in db.execute("PRAGMA foreign_key_list(tickets)")}
+    return {
+        (r["from"], r["table"], r["to"]) for r in db.execute("PRAGMA foreign_key_list(tickets)")
+    }
 
 
 def _make_legacy_db(db):
     """Eski şemayı (events yok, FK'siz tickets) birebir kurar."""
-    db.executescript(
-        "DROP TABLE IF EXISTS tickets; DROP TABLE IF EXISTS events;" + OLD_TICKETS_DDL
-    )
+    db.executescript("DROP TABLE IF EXISTS tickets; DROP TABLE IF EXISTS events;" + OLD_TICKETS_DDL)
 
 
 def test_fresh_db_has_tickets_event_fk(app):
@@ -39,8 +39,13 @@ def test_legacy_db_gets_tickets_event_fk_and_keeps_tickets(app):
     with app.app_context():
         db = get_db()
         _make_legacy_db(db)
-        db.execute("INSERT INTO venues (id, name, address, capacity) VALUES (1, 'Salon A', 'A', 100)")
-        db.execute("INSERT INTO users (id, email, password_hash, role) VALUES (1, 'o@e.com', 'x', 'organizer')")
+        db.execute(
+            "INSERT INTO venues (id, name, address, capacity) VALUES (1, 'Salon A', 'A', 100)"
+        )
+        db.execute(
+            "INSERT INTO users (id, email, password_hash, role) "
+            "VALUES (1, 'o@e.com', 'x', 'organizer')"
+        )
         db.commit()
         # Eski DB'de events yok; bilet kaydı henüz yok -> migrasyon sorunsuz olmalı.
         init_db()
@@ -55,19 +60,45 @@ def test_legacy_tickets_with_valid_events_are_preserved(app):
         db = get_db()
         _make_legacy_db(db)
         db.executescript(
-            "INSERT OR IGNORE INTO venues (id, name, address, capacity) VALUES (1, 'Salon A', 'A', 100);"
-            "INSERT OR IGNORE INTO users (id, email, password_hash, role) VALUES (1, 'o@e.com', 'x', 'organizer');"
+            "INSERT OR IGNORE INTO venues (id, name, address, capacity) "
+            "VALUES (1, 'Salon A', 'A', 100);"
+            "INSERT OR IGNORE INTO users (id, email, password_hash, role) "
+            "VALUES (1, 'o@e.com', 'x', 'organizer');"
         )
-        init_db()  # events tablosu oluşur, FK eklenir
+        init_db()  # events tablosu oluşur; tickets henüz boş olduğundan migrasyon sorunsuzdur
         db = get_db()
         db.execute(
-            "INSERT INTO events (id, title, category, venue_id, start_time, end_time, capacity, price, organizer_id)"
-            " VALUES (1, 'T', 'C', 1, 's', 'e', 10, 0, 1)"
+            "INSERT INTO events (id, title, category, venue_id, start_time, end_time, "
+            "capacity, price, organizer_id) VALUES (1, 'T', 'C', 1, 's', 'e', 10, 0, 1)"
         )
-        db.execute("INSERT INTO tickets (event_id, user_id, status, created_at) VALUES (1, 1, 'paid', 'now')")
         db.commit()
-        init_db()  # tekrar çalışınca bilet silinmemeli
-        assert get_db().execute("SELECT COUNT(*) FROM tickets").fetchone()[0] == 1
+
+        # Eski, FK'siz tickets tablosunu geri kur ve migrasyondan ÖNCE geçerli biletler ekle.
+        db.executescript("DROP TABLE tickets;" + OLD_TICKETS_DDL)
+        assert ("event_id", "events", "id") not in _fk_targets(db)
+        db.execute(
+            "INSERT INTO tickets (id, event_id, user_id, status, qr_code, created_at)"
+            " VALUES (7, 1, 1, 'paid', 'QR-7', '2026-03-02')"
+        )
+        db.execute(
+            "INSERT INTO tickets (id, event_id, user_id, status, qr_code, created_at)"
+            " VALUES (8, 1, 2, 'cancelled', NULL, '2026-03-03')"
+        )
+        db.commit()
+
+        init_db()  # migrasyon: bu çağrıda FK eklenir ve mevcut biletler taşınır
+        db = get_db()
+        assert ("event_id", "events", "id") in _fk_targets(db)
+        rows = [
+            tuple(r)
+            for r in db.execute(
+                "SELECT id, event_id, user_id, status, qr_code, created_at FROM tickets ORDER BY id"
+            )
+        ]
+        assert rows == [
+            (7, 1, 1, "paid", "QR-7", "2026-03-02"),
+            (8, 1, 2, "cancelled", None, "2026-03-03"),
+        ]
 
 
 def test_legacy_orphan_tickets_fail_with_clear_error_and_are_not_lost(app):

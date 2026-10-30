@@ -8,8 +8,13 @@ from app.core.db import get_db, init_db
 
 
 def _seed_refs(db):
-    db.execute("INSERT INTO venues (id, name, address, capacity) VALUES (1, 'Salon A', 'Adres', 100)")
-    db.execute("INSERT INTO users (id, email, password_hash, role) VALUES (1, 'org@example.com', 'x', 'organizer')")
+    db.execute(
+        "INSERT INTO venues (id, name, address, capacity) VALUES (1, 'Salon A', 'Adres', 100)"
+    )
+    db.execute(
+        "INSERT INTO users (id, email, password_hash, role) "
+        "VALUES (1, 'org@example.com', 'x', 'organizer')"
+    )
 
 
 def _insert_event(db, **overrides):
@@ -40,8 +45,16 @@ def test_events_table_exists_with_expected_columns(app):
     with app.app_context():
         columns = [r["name"] for r in get_db().execute("PRAGMA table_info(events)")]
     assert columns == [
-        "id", "title", "category", "venue_id", "start_time", "end_time",
-        "capacity", "price", "status", "organizer_id",
+        "id",
+        "title",
+        "category",
+        "venue_id",
+        "start_time",
+        "end_time",
+        "capacity",
+        "price",
+        "status",
+        "organizer_id",
     ]
 
 

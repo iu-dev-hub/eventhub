@@ -30,7 +30,11 @@ def close_db(_error=None) -> None:
 
 
 def _tickets_has_event_fk(db: sqlite3.Connection) -> bool:
-    return any(r["table"] == "events" for r in db.execute("PRAGMA foreign_key_list(tickets)"))
+    """tickets.event_id -> events.id ilişkisi var mı? ('to' boşsa hedef PRIMARY KEY'dir.)"""
+    return any(
+        r["from"] == "event_id" and r["table"] == "events" and r["to"] in ("id", None)
+        for r in db.execute("PRAGMA foreign_key_list(tickets)")
+    )
 
 
 def _migrate_tickets_event_fk(db: sqlite3.Connection) -> None:

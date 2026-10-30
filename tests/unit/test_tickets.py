@@ -1,13 +1,22 @@
 from app.core.db import get_db
 from app.tickets import services
 
+
 def _seed_event(db, event_id):
     """tickets.event_id -> events.id FK'si için gerçek bir (yayımlanmış) etkinlik ekler."""
-    db.execute("INSERT OR IGNORE INTO venues (id, name, address, capacity) VALUES (1, 'Salon A', 'Adres', 100)")
-    db.execute("INSERT OR IGNORE INTO users (id, email, password_hash, role) VALUES (1, 'org@example.com', 'x', 'organizer')")
     db.execute(
-        "INSERT INTO events (id, title, category, venue_id, start_time, end_time, capacity, price, status, organizer_id) "
-        "VALUES (?, 'Test', 'Eğitim', 1, '2026-12-01T10:00', '2026-12-01T12:00', 50, 0, 'published', 1)",
+        "INSERT OR IGNORE INTO venues (id, name, address, capacity) "
+        "VALUES (1, 'Salon A', 'Adres', 100)"
+    )
+    db.execute(
+        "INSERT OR IGNORE INTO users (id, email, password_hash, role) "
+        "VALUES (1, 'org@example.com', 'x', 'organizer')"
+    )
+    db.execute(
+        "INSERT INTO events (id, title, category, venue_id, start_time, end_time, "
+        "capacity, price, status, organizer_id) "
+        "VALUES (?, 'Test', 'Eğitim', 1, '2026-12-01T10:00', '2026-12-01T12:00', 50, 0, "
+        "'published', 1)",
         (event_id,),
     )
     db.commit()
