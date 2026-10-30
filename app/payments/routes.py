@@ -1,5 +1,7 @@
 """Koltuk kilitleme ve ödeme uç noktaları."""
-from flask import jsonify, request
+import sqlite3
+
+from flask import current_app, jsonify, request
 
 from app.payments import bp, services
 
@@ -48,3 +50,13 @@ def pay():
     # Görev gereği başarısız ödeme de 200 döner, sonuç success alanındadır
     result = services.process_payment(card_number, amount, seats)
     return jsonify(result), 200
+
+
+@bp.errorhandler(sqlite3.Error)
+def handle_database_error(error):
+    # Ayrıntı kullanıcıya gösterilmez (güvenlik), sunucu loguna yazılır
+    current_app.logger.error("Veritabanı hatası: %s", error)
+    return jsonify({
+        "success": False,
+        "message": "Veritabanı hatası, lütfen tekrar deneyin.",
+    }), 500
