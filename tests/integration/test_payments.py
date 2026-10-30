@@ -1,4 +1,5 @@
 """Koltuk kilitleme ve ödeme API'si testleri (SQLite üzerinden)."""
+
 import json
 import sqlite3
 from datetime import datetime, timedelta
@@ -28,9 +29,7 @@ def lock(client, seats):
 
 
 def pay(client, card, seats):
-    return client.post(
-        "/api/payment/pay", json={"cardNumber": card, "amount": 100, "seats": seats}
-    )
+    return client.post("/api/payment/pay", json={"cardNumber": card, "amount": 100, "seats": seats})
 
 
 # --- Kilitleme ---
@@ -75,7 +74,10 @@ def test_payment_with_4242_card_succeeds_and_seats_become_sold(client):
     lock(client, ["A1"])
     response = pay(client, VALID_CARD, ["A1"])
     assert response.status_code == 200
-    assert response.get_json() == {"success": True, "ticketId": "T12345"}
+    data = response.get_json()
+    assert data["success"] is True
+    assert "ticketId" in data
+    assert "reservationId" in data
     # Satılan koltuk tekrar kilitlenemez
     assert lock(client, ["A1"]).status_code == 409
 
@@ -90,7 +92,8 @@ def test_payment_with_0000_card_fails_with_insufficient_balance(client):
 def test_payment_fails_when_card_is_shorter_than_16_digits(client):
     lock(client, ["A1"])
     assert pay(client, "4242", ["A1"]).get_json() == {
-        "success": False, "message": "Geçersiz kart",
+        "success": False,
+        "message": "Geçersiz kart",
     }
 
 
@@ -171,7 +174,5 @@ def test_invalid_seat_status_is_rejected_by_database(client):
     with client.application.app_context():
         with pytest.raises(sqlite3.IntegrityError):
             get_db().execute(
-                "INSERT INTO seats (event_id, seat_code, status) "
-                "VALUES (1, 'A1', 'broken')"
+                "INSERT INTO seats (event_id, seat_code, status) VALUES (1, 'A1', 'broken')"
             )
-        
