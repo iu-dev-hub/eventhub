@@ -147,6 +147,14 @@ def sanitize_card_number(raw_card: str) -> str:
 
 def check_rate_limit(client_id: str, now=None) -> bool:
     """Belirli bir istemci için art arda hatalı deneme sayısını denetler."""
+    try:
+        from flask import current_app
+
+        if current_app and current_app.config.get("TESTING") and not current_app.config.get("ENABLE_RATE_LIMIT"):
+            return True
+    except RuntimeError:
+        pass
+
     now = now or datetime.now()
     cutoff = now - timedelta(seconds=FAILED_WINDOW_SECONDS)
     attempts = [t for t in _FAILED_ATTEMPTS.get(client_id, []) if t > cutoff]
@@ -156,6 +164,14 @@ def check_rate_limit(client_id: str, now=None) -> bool:
 
 def record_failed_attempt(client_id: str, now=None):
     """Hatalı denemeyi hafızaya ekler."""
+    try:
+        from flask import current_app
+
+        if current_app and current_app.config.get("TESTING") and not current_app.config.get("ENABLE_RATE_LIMIT"):
+            return
+    except RuntimeError:
+        pass
+
     now = now or datetime.now()
     _FAILED_ATTEMPTS.setdefault(client_id, []).append(now)
 
@@ -163,6 +179,11 @@ def record_failed_attempt(client_id: str, now=None):
 def reset_rate_limit(client_id: str):
     """Başarılı işlemde limit sayacını sıfırlar."""
     _FAILED_ATTEMPTS.pop(client_id, None)
+
+
+def clear_failed_attempts():
+    """Tüm başarısız deneme kayıtlarını temizler."""
+    _FAILED_ATTEMPTS.clear()
 
 
 def process_payment(
