@@ -171,6 +171,7 @@ def get_seats_status(seats=None, event_id=DEFAULT_EVENT_ID, now=None):
         raise
 
 
+
 def _decide_payment(db, card_number, seats, event_id):
     """Ödeme kurallarını uygular, (success, message) döner.
 
