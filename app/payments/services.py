@@ -128,6 +128,39 @@ def _decide_payment(db, card_number, seats, event_id):
     return False, "Geçersiz kart"
 
 
+
+_FAILED_ATTEMPTS = {}
+MAX_FAILED_ATTEMPTS = 5
+FAILED_WINDOW_SECONDS = 300
+
+
+def sanitize_card_number(raw_card: str) -> str:
+    """Kart numarasındaki boşluk ve tire karakterlerini temizler."""
+    if not isinstance(raw_card, str):
+        return ""
+    return raw_card.replace(" ", "").replace("-", "").strip()
+
+
+def check_rate_limit(client_id: str, now=None) -> bool:
+    """Belirli bir istemci için art arda hatalı deneme sayısını denetler."""
+    now = now or datetime.now()
+    cutoff = now - timedelta(seconds=FAILED_WINDOW_SECONDS)
+    attempts = [t for t in _FAILED_ATTEMPTS.get(client_id, []) if t > cutoff]
+    _FAILED_ATTEMPTS[client_id] = attempts
+    return len(attempts) < MAX_FAILED_ATTEMPTS
+
+
+def record_failed_attempt(client_id: str, now=None):
+    """Hatalı denemeyi hafızaya ekler."""
+    now = now or datetime.now()
+    _FAILED_ATTEMPTS.setdefault(client_id, []).append(now)
+
+
+def reset_rate_limit(client_id: str):
+    """Başarılı işlemde limit sayacını sıfırlar."""
+    _FAILED_ATTEMPTS.pop(client_id, None)
+
+
 def process_payment(
     card_number,
     amount,
@@ -135,6 +168,7 @@ def process_payment(
     event_id=DEFAULT_EVENT_ID,
     user_id=None,
     idempotency_key=None,
+    client_id="default_client",
     now=None,
 ):
     """Sahte ödeme. Her deneme (başarılı/başarısız) payments tablosuna yazılır.
@@ -144,6 +178,14 @@ def process_payment(
     idempotency_key verilmişse ve daha önce kaydedilmişse mevcut rezervasyon döner.
     """
     now = now or datetime.now()
+    card_number = sanitize_card_number(card_number)
+
+    if not check_rate_limit(client_id, now):
+        return {
+            "success": False,
+            "message": "Çok fazla başarısız deneme, lütfen daha sonra tekrar deneyin.",
+        }
+
     db = get_db()
 
     db.execute("BEGIN IMMEDIATE")
@@ -216,6 +258,7 @@ def process_payment(
     _export_log(db)
 
     if success:
+        reset_rate_limit(client_id)
         return {
             "success": True,
             "ticketId": ticket_code,
@@ -225,6 +268,7 @@ def process_payment(
             "seats": seats,
             "createdAt": _iso(now),
         }
+    record_failed_attempt(client_id, now)
     return {"success": False, "message": message}
 
 
