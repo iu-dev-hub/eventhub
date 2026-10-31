@@ -91,3 +91,31 @@ CREATE TABLE IF NOT EXISTS payments (
     seats      TEXT    NOT NULL,  -- JSON metin: ["A1","A2"]
     created_at TEXT    NOT NULL
 );
+
+-- Owner: team-payments
+-- Rezervasyonlar: başarılı ödemelerle ilişkili rezervasyon kaydı.
+-- idempotency_key benzersizdir (mükerrer ödeme/istek engelleme).
+CREATE TABLE IF NOT EXISTS reservations (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    payment_id      INTEGER NOT NULL,
+    event_id        INTEGER NOT NULL,
+    user_id         INTEGER,
+    idempotency_key TEXT UNIQUE,
+    ticket_code     TEXT UNIQUE,
+    status          TEXT NOT NULL DEFAULT 'confirmed'
+                    CHECK (status IN ('pending', 'confirmed', 'cancelled')),
+    created_at      TEXT NOT NULL,
+    FOREIGN KEY (payment_id) REFERENCES payments(id)
+);
+
+-- Owner: team-payments
+-- Rezervasyon-Koltuk ilişkisi: etkinlikte bir koltuk aynı anda yalnızca tek bir rezervasyonda bulunabilir.
+CREATE TABLE IF NOT EXISTS reservation_seats (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservation_id INTEGER NOT NULL,
+    event_id       INTEGER NOT NULL,
+    seat_code      TEXT NOT NULL,
+    created_at     TEXT NOT NULL,
+    FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,
+    UNIQUE (event_id, seat_code)
+);
