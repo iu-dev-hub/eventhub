@@ -1,4 +1,5 @@
 """Koltuk kilitleme ve ödeme API'si testleri (SQLite üzerinden)."""
+
 import json
 import sqlite3
 from datetime import datetime, timedelta
@@ -28,9 +29,7 @@ def lock(client, seats):
 
 
 def pay(client, card, seats):
-    return client.post(
-        "/api/payment/pay", json={"cardNumber": card, "amount": 100, "seats": seats}
-    )
+    return client.post("/api/payment/pay", json={"cardNumber": card, "amount": 100, "seats": seats})
 
 
 # --- Kilitleme ---
@@ -75,7 +74,10 @@ def test_payment_with_4242_card_succeeds_and_seats_become_sold(client):
     lock(client, ["A1"])
     response = pay(client, VALID_CARD, ["A1"])
     assert response.status_code == 200
-    assert response.get_json() == {"success": True, "ticketId": "T12345"}
+    data = response.get_json()
+    assert data["success"] is True
+    assert "ticketId" in data
+    assert "reservationId" in data
     # Satılan koltuk tekrar kilitlenemez
     assert lock(client, ["A1"]).status_code == 409
 
@@ -90,7 +92,8 @@ def test_payment_with_0000_card_fails_with_insufficient_balance(client):
 def test_payment_fails_when_card_is_shorter_than_16_digits(client):
     lock(client, ["A1"])
     assert pay(client, "4242", ["A1"]).get_json() == {
-        "success": False, "message": "Geçersiz kart",
+        "success": False,
+        "message": "Geçersiz kart",
     }
 
 
@@ -171,7 +174,61 @@ def test_invalid_seat_status_is_rejected_by_database(client):
     with client.application.app_context():
         with pytest.raises(sqlite3.IntegrityError):
             get_db().execute(
-                "INSERT INTO seats (event_id, seat_code, status) "
-                "VALUES (1, 'A1', 'broken')"
+                "INSERT INTO seats (event_id, seat_code, status) VALUES (1, 'A1', 'broken')"
             )
-        
+
+
+# --- Koltuk Durumu ve Kilit Açma Uç Noktaları (TG-133) ---
+
+def test_seats_status_endpoint_returns_seat_list(client):
+    """GET /api/seats/status tüm koltuk listesini döner."""
+    lock(client, ["A1", "A2"])
+    resp = client.get("/api/seats/status")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert isinstance(data["seats"], list)
+    codes = [s["seat_code"] for s in data["seats"]]
+    assert "A1" in codes
+    assert "A2" in codes
+
+
+def test_seats_status_endpoint_filters_by_query_param(client):
+    """GET /api/seats/status?seats=A1 belirli koltuk durumunu döner."""
+    lock(client, ["A1", "A2"])
+    resp = client.get("/api/seats/status?seats=A1")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert len(data["seats"]) == 1
+    assert data["seats"][0]["seat_code"] == "A1"
+    assert data["seats"][0]["status"] == "locked"
+
+
+def test_seats_unlock_endpoint_releases_locked_seats(client):
+    """POST /api/seats/unlock kilitli koltukları serbest bırakır."""
+    lock(client, ["A1", "A2"])
+    resp = client.post("/api/seats/unlock", json={"seats": ["A1"]})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["released"] == ["A1"]
+
+    # Koltuk tekrar kilitlenebilir olmalı
+    relock_resp = lock(client, ["A1"])
+    assert relock_resp.status_code == 200
+
+
+def test_seats_unlock_endpoint_fails_when_seats_missing(client):
+    """POST /api/seats/unlock eksik veya geçersiz gövdede 400 döner."""
+    resp = client.post("/api/seats/unlock", json={})
+    assert resp.status_code == 400
+    assert resp.get_json()["success"] is False
+
+
+def test_seats_unlock_endpoint_fails_when_no_locked_seats(client):
+    """POST /api/seats/unlock kilitli olmayan koltuk için 409 döner."""
+    resp = client.post("/api/seats/unlock", json={"seats": ["Z9"]})
+    assert resp.status_code == 409
+    assert resp.get_json()["success"] is False
+
