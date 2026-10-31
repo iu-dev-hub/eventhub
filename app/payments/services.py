@@ -122,7 +122,7 @@ def unlock_seats(seats, event_id=DEFAULT_EVENT_ID, now=None):
         db.rollback()
         raise
 
-
+ feature/TG-133-add-seats-status-endpoint
 def get_seats_status(seats=None, event_id=DEFAULT_EVENT_ID, now=None):
     """Koltukların güncel durumlarını döner.
 
@@ -169,6 +169,7 @@ def get_seats_status(seats=None, event_id=DEFAULT_EVENT_ID, now=None):
     except sqlite3.Error:
         db.rollback()
         raise
+
 
 
 def _decide_payment(db, card_number, seats, event_id):
