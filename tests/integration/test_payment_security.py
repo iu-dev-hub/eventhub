@@ -14,7 +14,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(services, "LOG_FILE", tmp_path / "payment_logs.json")
     # Reset in-memory rate limiter between tests
     services._FAILED_ATTEMPTS.clear()
-    app = create_app({"TESTING": True, "DATABASE": str(tmp_path / "test.db")})
+    app = create_app({"TESTING": True, "ENABLE_RATE_LIMIT": True, "DATABASE": str(tmp_path / "test.db")})
     with app.app_context():
         init_db()
     return app.test_client()
