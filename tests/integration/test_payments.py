@@ -176,3 +176,59 @@ def test_invalid_seat_status_is_rejected_by_database(client):
             get_db().execute(
                 "INSERT INTO seats (event_id, seat_code, status) VALUES (1, 'A1', 'broken')"
             )
+
+
+# --- Koltuk Durumu ve Kilit Açma Uç Noktaları (TG-133) ---
+
+def test_seats_status_endpoint_returns_seat_list(client):
+    """GET /api/seats/status tüm koltuk listesini döner."""
+    lock(client, ["A1", "A2"])
+    resp = client.get("/api/seats/status")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert isinstance(data["seats"], list)
+    codes = [s["seat_code"] for s in data["seats"]]
+    assert "A1" in codes
+    assert "A2" in codes
+
+
+def test_seats_status_endpoint_filters_by_query_param(client):
+    """GET /api/seats/status?seats=A1 belirli koltuk durumunu döner."""
+    lock(client, ["A1", "A2"])
+    resp = client.get("/api/seats/status?seats=A1")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert len(data["seats"]) == 1
+    assert data["seats"][0]["seat_code"] == "A1"
+    assert data["seats"][0]["status"] == "locked"
+
+
+def test_seats_unlock_endpoint_releases_locked_seats(client):
+    """POST /api/seats/unlock kilitli koltukları serbest bırakır."""
+    lock(client, ["A1", "A2"])
+    resp = client.post("/api/seats/unlock", json={"seats": ["A1"]})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["released"] == ["A1"]
+
+    # Koltuk tekrar kilitlenebilir olmalı
+    relock_resp = lock(client, ["A1"])
+    assert relock_resp.status_code == 200
+
+
+def test_seats_unlock_endpoint_fails_when_seats_missing(client):
+    """POST /api/seats/unlock eksik veya geçersiz gövdede 400 döner."""
+    resp = client.post("/api/seats/unlock", json={})
+    assert resp.status_code == 400
+    assert resp.get_json()["success"] is False
+
+
+def test_seats_unlock_endpoint_fails_when_no_locked_seats(client):
+    """POST /api/seats/unlock kilitli olmayan koltuk için 409 döner."""
+    resp = client.post("/api/seats/unlock", json={"seats": ["Z9"]})
+    assert resp.status_code == 409
+    assert resp.get_json()["success"] is False
+
