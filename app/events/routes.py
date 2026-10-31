@@ -13,18 +13,18 @@ def index():
 @bp.route("/create", methods=["GET", "POST"])
 def create():
     if request.method == "POST":
-        # TG-21'den gelen tüm form verilerini alıyoruz
+        # TG-21 ve TG-119'dan gelen tüm form verilerini alıyoruz (venue_id entegrasyonu)
         title = request.form.get("title", "")
         category = request.form.get("category", "")
-        venue = request.form.get("venue", "")
+        venue_id = request.form.get("venue_id", "")
         start_time = request.form.get("start_time", "")
         end_time = request.form.get("end_time", "")
         capacity = request.form.get("capacity", "")
         price = request.form.get("price", "")
 
-        # TG-22'deki doğrulama servisine tüm verileri gönderiyoruz
+        # TG-22 / TG-118 doğrulama servisine verileri gönderiyoruz (venue_id desteği)
         is_valid, messages = services.validate_event_creation(
-            title, category, venue, start_time, end_time, capacity, price
+            title, category, venue_id, start_time, end_time, capacity, price
         )
 
         # Doğrulama sonuçlarını (başarılı/hata) flash mesajı olarak basıyoruz
@@ -38,7 +38,9 @@ def create():
         else:
             return redirect(url_for("events.create"))
 
-    return render_template("events/create.html")
+    # #119 Görev Kriteri: Sprint 2 salon verilerini form sayfasına dinamik olarak gönderiyoruz
+    venues_list = services.get_all_venues()
+    return render_template("events/create.html", venues=venues_list)
 
 
 @bp.route("/venues", methods=["GET"])
