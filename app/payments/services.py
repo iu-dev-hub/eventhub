@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from app.core.db import get_db
+from app.payments.gateway import get_payment_gateway
 
 # Koltuk kilidi süresi (dakika)
 LOCK_MINUTES = 10
@@ -95,11 +96,13 @@ def lock_seats(seats, event_id=DEFAULT_EVENT_ID, now=None):
 def _decide_payment(db, card_number, seats, event_id):
     """Ödeme kurallarını uygular, (success, message) döner.
 
-    Başarılıysa koltukları "sold" yapar. Commit işini çağıran yapar.
+    Harici ödeme sağlayıcı gateway adaptörünü kullanarak işlemi onaylar ve
+    başarılıysa koltukları "sold" yapar. Commit işini çağıran yapar.
     """
-    # BR-4.3: kart tam 16 haneli ve yalnızca rakam olmalı.
-    if len(card_number) != CARD_LENGTH or not card_number.isascii() or not card_number.isdigit():
-        return False, "Geçersiz kart"
+    gateway = get_payment_gateway()
+    charge_result = gateway.charge(card_number, amount=100)
+    if not charge_result["success"]:
+        return False, charge_result["message"]
 
     sold = []
     not_locked = []
@@ -120,21 +123,13 @@ def _decide_payment(db, card_number, seats, event_id):
     if not_locked:
         return False, "Koltuk kilitli değil"
 
-    if card_number.endswith("4242"):
-        # Başarılı ödeme: kilitli koltuklar "dolu" olur
-        for code in seats:
-            db.execute(
-                "UPDATE seats SET status = 'sold', locked_until = NULL "
-                "WHERE event_id = ? AND seat_code = ?",
-                (event_id, code),
-            )
-        return True, "Ödeme başarılı"
-
-    if card_number.endswith("0000"):
-        return False, "Yetersiz bakiye"
-
-    # Tanımsız kartlar da reddedilir ve loglanır
-    return False, "Geçersiz kart"
+    for code in seats:
+        db.execute(
+            "UPDATE seats SET status = 'sold', locked_until = NULL "
+            "WHERE event_id = ? AND seat_code = ?",
+            (event_id, code),
+        )
+    return True, charge_result["message"]
 
 
 
