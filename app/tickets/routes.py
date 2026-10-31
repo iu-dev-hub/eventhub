@@ -1,12 +1,9 @@
 import json
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import flash, redirect, render_template, request, session, url_for
 
 from app.core.db import get_db
-from app.tickets import services
-
-# Bilet modülü için Blueprint tanımı
-bp = Blueprint("tickets", __name__, url_prefix="/tickets")
+from app.tickets import bp, services
 
 
 @bp.route("/")
