@@ -1,4 +1,5 @@
 """Koltuk kilitleme ve ödeme iş kuralları (SQLite üzerinden)."""
+
 import json
 import sqlite3
 from datetime import datetime, timedelta
@@ -43,9 +44,18 @@ def lock_seats(seats, event_id=DEFAULT_EVENT_ID, now=None):
     expires = now + timedelta(minutes=LOCK_MINUTES)
     db = get_db()
 
-    # BEGIN IMMEDIATE: yazma kilidini hemen alır, iki istek aynı anda
-    # aynı koltuğu kilitleyemez (eski _mutex'in yerini alır).
-    db.execute("BEGIN IMMEDIATE")
+    # BEGIN IMMEDIATE: yazma kilidini hemen alır, eş zamanlı yarış durumunda
+    # kilit alınıncaya kadar kısa süreli tekrar dener.
+    import time
+    for attempt in range(5):
+        try:
+            db.execute("BEGIN IMMEDIATE")
+            break
+        except sqlite3.OperationalError as e:
+            if "locked" in str(e).lower() and attempt < 4:
+                time.sleep(0.02 * (attempt + 1))
+                continue
+            raise
     try:
         _release_expired(db, now)
 
@@ -123,17 +133,62 @@ def unlock_seats(seats, event_id=DEFAULT_EVENT_ID, now=None):
         raise
 
 
+def get_seats_status(seats=None, event_id=DEFAULT_EVENT_ID, now=None):
+    """Koltukların güncel durumlarını döner.
+
+    Süresi dolan kilitler varsa sorgulamadan önce serbest bırakılır.
+    `seats` None ise ilgili etkinliğe ait kayıtlı tüm koltuklar döner.
+    `seats` liste ise listedeki her koltuk (kayıt yoksa 'available' olarak eklenerek) döner.
+    """
+    now = now or datetime.now()
+    db = get_db()
+
+    db.execute("BEGIN IMMEDIATE")
+    try:
+        _release_expired(db, now)
+
+        if seats is not None:
+            for code in seats:
+                db.execute(
+                    "INSERT OR IGNORE INTO seats (event_id, seat_code) VALUES (?, ?)",
+                    (event_id, code),
+                )
+            placeholders = ",".join("?" for _ in seats)
+            rows = db.execute(
+                f"SELECT seat_code, status, locked_until FROM seats "
+                f"WHERE event_id = ? AND seat_code IN ({placeholders}) "
+                f"ORDER BY seat_code",
+                [event_id, *seats],
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT seat_code, status, locked_until FROM seats "
+                "WHERE event_id = ? ORDER BY seat_code",
+                (event_id,),
+            ).fetchall()
+
+        db.commit()
+        return [
+            {
+                "seat_code": row["seat_code"],
+                "status": row["status"],
+                "locked_until": row["locked_until"],
+            }
+            for row in rows
+        ]
+    except sqlite3.Error:
+        db.rollback()
+        raise
+
+
+
 def _decide_payment(db, card_number, seats, event_id):
     """Ödeme kurallarını uygular, (success, message) döner.
 
     Başarılıysa koltukları "sold" yapar. Commit işini çağıran yapar.
     """
     # BR-4.3: kart tam 16 haneli ve yalnızca rakam olmalı.
-    if (
-        len(card_number) != CARD_LENGTH
-        or not card_number.isascii()
-        or not card_number.isdigit()
-    ):
+    if len(card_number) != CARD_LENGTH or not card_number.isascii() or not card_number.isdigit():
         return False, "Geçersiz kart"
 
     sold = []
@@ -172,23 +227,149 @@ def _decide_payment(db, card_number, seats, event_id):
     return False, "Geçersiz kart"
 
 
-def process_payment(card_number, amount, seats, event_id=DEFAULT_EVENT_ID, now=None):
-    """Sahte ödeme. Her deneme (başarılı/başarısız) payments tablosuna yazılır."""
+
+_FAILED_ATTEMPTS = {}
+MAX_FAILED_ATTEMPTS = 5
+FAILED_WINDOW_SECONDS = 300
+
+
+def sanitize_card_number(raw_card: str) -> str:
+    """Kart numarasındaki boşluk ve tire karakterlerini temizler."""
+    if not isinstance(raw_card, str):
+        return ""
+    return raw_card.replace(" ", "").replace("-", "").strip()
+
+
+def check_rate_limit(client_id: str, now=None) -> bool:
+    """Belirli bir istemci için art arda hatalı deneme sayısını denetler."""
+    try:
+        from flask import current_app
+
+        if current_app and current_app.config.get("TESTING") and not current_app.config.get("ENABLE_RATE_LIMIT"):
+            return True
+    except RuntimeError:
+        pass
+
     now = now or datetime.now()
+    cutoff = now - timedelta(seconds=FAILED_WINDOW_SECONDS)
+    attempts = [t for t in _FAILED_ATTEMPTS.get(client_id, []) if t > cutoff]
+    _FAILED_ATTEMPTS[client_id] = attempts
+    return len(attempts) < MAX_FAILED_ATTEMPTS
+
+
+def record_failed_attempt(client_id: str, now=None):
+    """Hatalı denemeyi hafızaya ekler."""
+    try:
+        from flask import current_app
+
+        if current_app and current_app.config.get("TESTING") and not current_app.config.get("ENABLE_RATE_LIMIT"):
+            return
+    except RuntimeError:
+        pass
+
+    now = now or datetime.now()
+    _FAILED_ATTEMPTS.setdefault(client_id, []).append(now)
+
+
+def reset_rate_limit(client_id: str):
+    """Başarılı işlemde limit sayacını sıfırlar."""
+    _FAILED_ATTEMPTS.pop(client_id, None)
+
+
+def clear_failed_attempts():
+    """Tüm başarısız deneme kayıtlarını temizler."""
+    _FAILED_ATTEMPTS.clear()
+
+
+def process_payment(
+    card_number,
+    amount,
+    seats,
+    event_id=DEFAULT_EVENT_ID,
+    user_id=None,
+    idempotency_key=None,
+    client_id="default_client",
+    now=None,
+):
+    """Sahte ödeme. Her deneme (başarılı/başarısız) payments tablosuna yazılır.
+
+    Başarılı ödemede tek bir transaction içinde reservation ve reservation_seats
+    kayıtları ve bilet bilgisi oluşturulur.
+    idempotency_key verilmişse ve daha önce kaydedilmişse mevcut rezervasyon döner.
+    """
+    now = now or datetime.now()
+    card_number = sanitize_card_number(card_number)
+
+    if not check_rate_limit(client_id, now):
+        return {
+            "success": False,
+            "message": "Çok fazla başarısız deneme, lütfen daha sonra tekrar deneyin.",
+        }
+
     db = get_db()
 
     db.execute("BEGIN IMMEDIATE")
     try:
+        # Idempotency kontrolü: aynı anahtar varsa tekrar çekim yapma
+        if idempotency_key:
+            existing = db.execute(
+                "SELECT r.id, r.event_id, r.ticket_code, r.created_at, p.amount, p.seats "
+                "FROM reservations r "
+                "JOIN payments p ON r.payment_id = p.id "
+                "WHERE r.idempotency_key = ?",
+                (idempotency_key,),
+            ).fetchone()
+            if existing:
+                db.rollback()
+                return {
+                    "success": True,
+                    "ticketId": existing["ticket_code"],
+                    "ticketCode": existing["ticket_code"],
+                    "reservationId": existing["id"],
+                    "eventId": existing["event_id"],
+                    "seats": json.loads(existing["seats"]),
+                    "createdAt": existing["created_at"],
+                    "idempotent": True,
+                }
+
         _release_expired(db, now)
         success, message = _decide_payment(db, card_number, seats, event_id)
 
         # Kartın tamamını saklamayız; yalnızca son 4 hane
         last4 = card_number[-4:] if card_number.isdigit() else None
-        db.execute(
+        cursor = db.execute(
             "INSERT INTO payments (amount, card_last4, success, message, seats, "
             "created_at) VALUES (?, ?, ?, ?, ?, ?)",
             (amount, last4, int(success), message, json.dumps(seats), _iso(now)),
         )
+        payment_id = cursor.lastrowid
+
+        ticket_code = None
+        reservation_id = None
+        if success:
+            ticket_code = f"T{payment_id:05d}"
+            cursor_res = db.execute(
+                "INSERT INTO reservations (payment_id, event_id, user_id, "
+                "idempotency_key, ticket_code, status, created_at) "
+                "VALUES (?, ?, ?, ?, ?, 'confirmed', ?)",
+                (
+                    payment_id,
+                    event_id,
+                    user_id,
+                    idempotency_key,
+                    ticket_code,
+                    _iso(now),
+                ),
+            )
+            reservation_id = cursor_res.lastrowid
+
+            for code in seats:
+                db.execute(
+                    "INSERT INTO reservation_seats (reservation_id, event_id, "
+                    "seat_code, created_at) VALUES (?, ?, ?, ?)",
+                    (reservation_id, event_id, code, _iso(now)),
+                )
+
         db.commit()
     except sqlite3.Error:
         db.rollback()
@@ -197,7 +378,17 @@ def process_payment(card_number, amount, seats, event_id=DEFAULT_EVENT_ID, now=N
     _export_log(db)
 
     if success:
-        return {"success": True, "ticketId": "T12345"}
+        reset_rate_limit(client_id)
+        return {
+            "success": True,
+            "ticketId": ticket_code,
+            "ticketCode": ticket_code,
+            "reservationId": reservation_id,
+            "eventId": event_id,
+            "seats": seats,
+            "createdAt": _iso(now),
+        }
+    record_failed_attempt(client_id, now)
     return {"success": False, "message": message}
 
 
@@ -218,3 +409,30 @@ def _export_log(db):
     LOG_FILE.write_text(
         json.dumps(logs, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+
+
+def get_user_tickets(user_id: int):
+    """Kullanıcının satın aldığı ve rezerve ettiği tüm biletleri döner."""
+    db = get_db()
+    rows = db.execute(
+        "SELECT r.id AS reservation_id, r.ticket_code, r.status, r.created_at, "
+        "r.event_id, p.amount, p.seats "
+        "FROM reservations r "
+        "LEFT JOIN payments p ON r.payment_id = p.id "
+        "WHERE r.user_id = ? "
+        "ORDER BY r.id DESC",
+        (user_id,),
+    ).fetchall()
+    tickets = []
+    for row in rows:
+        seats_data = json.loads(row["seats"]) if row["seats"] else []
+        tickets.append({
+            "reservation_id": row["reservation_id"],
+            "ticket_code": row["ticket_code"],
+            "status": row["status"],
+            "created_at": row["created_at"],
+            "amount": row["amount"],
+            "event_id": row["event_id"],
+            "seats": seats_data,
+        })
+    return tickets
