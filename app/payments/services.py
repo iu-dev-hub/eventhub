@@ -92,6 +92,96 @@ def lock_seats(seats, event_id=DEFAULT_EVENT_ID, now=None):
         raise
 
 
+def unlock_seats(seats, event_id=DEFAULT_EVENT_ID, now=None):
+    """Kilitli koltukları manuel olarak serbest bırakır.
+
+    Yalnızca 'locked' durumdaki koltuklar serbest bırakılır;
+    'sold' veya 'available' koltuklar değiştirilmez.
+
+    Başarılıysa (True, serbest_bırakılan_koltuklar) döner.
+    Hiç 'locked' koltuk bulunamazsa (False, []) döner.
+    """
+    now = now or datetime.now()
+    db = get_db()
+
+    db.execute("BEGIN IMMEDIATE")
+    try:
+        # Önce süresi dolan kilitleri serbest bırak
+        _release_expired(db, now)
+
+        released = []
+        for code in seats:
+            row = db.execute(
+                "SELECT status FROM seats WHERE event_id = ? AND seat_code = ?",
+                (event_id, code),
+            ).fetchone()
+            # Yalnızca 'locked' olan koltuklar serbest bırakılır
+            if row is not None and row["status"] == "locked":
+                db.execute(
+                    "UPDATE seats SET status = 'available', locked_until = NULL "
+                    "WHERE event_id = ? AND seat_code = ?",
+                    (event_id, code),
+                )
+                released.append(code)
+
+        db.commit()
+        if released:
+            return True, released
+        return False, []
+    except sqlite3.Error:
+        db.rollback()
+        raise
+
+
+def get_seats_status(seats=None, event_id=DEFAULT_EVENT_ID, now=None):
+    """Koltukların güncel durumlarını döner.
+
+    Süresi dolan kilitler varsa sorgulamadan önce serbest bırakılır.
+    `seats` None ise ilgili etkinliğe ait kayıtlı tüm koltuklar döner.
+    `seats` liste ise listedeki her koltuk (kayıt yoksa 'available' olarak eklenerek) döner.
+    """
+    now = now or datetime.now()
+    db = get_db()
+
+    db.execute("BEGIN IMMEDIATE")
+    try:
+        _release_expired(db, now)
+
+        if seats is not None:
+            for code in seats:
+                db.execute(
+                    "INSERT OR IGNORE INTO seats (event_id, seat_code) VALUES (?, ?)",
+                    (event_id, code),
+                )
+            placeholders = ",".join("?" for _ in seats)
+            rows = db.execute(
+                f"SELECT seat_code, status, locked_until FROM seats "
+                f"WHERE event_id = ? AND seat_code IN ({placeholders}) "
+                f"ORDER BY seat_code",
+                [event_id, *seats],
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT seat_code, status, locked_until FROM seats "
+                "WHERE event_id = ? ORDER BY seat_code",
+                (event_id,),
+            ).fetchall()
+
+        db.commit()
+        return [
+            {
+                "seat_code": row["seat_code"],
+                "status": row["status"],
+                "locked_until": row["locked_until"],
+            }
+            for row in rows
+        ]
+    except sqlite3.Error:
+        db.rollback()
+        raise
+
+
+
 def _decide_payment(db, card_number, seats, event_id):
     """Ödeme kurallarını uygular, (success, message) döner.
 
@@ -316,7 +406,10 @@ def _export_log(db):
         }
         for row in rows
     ]
-    LOG_FILE.write_text(json.dumps(logs, ensure_ascii=False, indent=2), encoding="utf-8")
+    LOG_FILE.write_text(
+        json.dumps(logs, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
 
 def get_user_tickets(user_id: int):
     """Kullanıcının satın aldığı ve rezerve ettiği tüm biletleri döner."""
@@ -343,4 +436,3 @@ def get_user_tickets(user_id: int):
             "seats": seats_data,
         })
     return tickets
-
