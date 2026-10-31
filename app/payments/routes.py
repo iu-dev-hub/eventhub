@@ -2,7 +2,7 @@
 
 import sqlite3
 
-from flask import current_app, jsonify, request, session
+from flask import current_app, jsonify, render_template, request, session
 
 from app.payments import bp, services
 
@@ -67,6 +67,53 @@ def pay():
     return jsonify(result), 200
 
 
+@bp.get("/api/seats/status")
+def seats_status():
+    """Koltukların güncel kilit ve satış durumunu döner."""
+    event_id = request.args.get("event_id", default=services.DEFAULT_EVENT_ID, type=int)
+    seats_param = request.args.get("seats")
+    seats = None
+    if seats_param:
+        seats = [s.strip() for s in seats_param.split(",") if s.strip()]
+    elif request.args.getlist("seats"):
+        seats = request.args.getlist("seats")
+
+    if not seats and request.is_json:
+        data = request.get_json(silent=True) or {}
+        seats = data.get("seats")
+        if "event_id" in data:
+            event_id = data.get("event_id")
+
+    status_list = services.get_seats_status(seats=seats, event_id=event_id)
+    return jsonify({
+        "success": True,
+        "event_id": event_id,
+        "seats": status_list,
+    }), 200
+
+
+@bp.post("/api/seats/unlock")
+def unlock_seats():
+    """Kilitli koltukları manuel olarak serbest bırakır."""
+    data = request.get_json(silent=True) or {}
+    seats = _get_seats(data)
+    if seats is None:
+        return jsonify({"success": False, "message": "seats listesi gerekli"}), 400
+
+    ok, released = services.unlock_seats(seats)
+    if not ok:
+        return jsonify({
+            "success": False,
+            "message": "Serbest bırakılacak kilitli koltuk bulunamadı",
+            "released": [],
+        }), 409
+
+    return jsonify({
+        "success": True,
+        "message": "Koltuk kilidi kaldırıldı",
+        "released": released,
+    }), 200
+
 
 @bp.get("/api/tickets/my-tickets")
 def my_tickets_api():
@@ -80,9 +127,13 @@ def my_tickets_api():
 def handle_database_error(error):
     # Ayrıntı kullanıcıya gösterilmez (güvenlik), sunucu loguna yazılır
     current_app.logger.error("Veritabanı hatası: %s", error)
-    return jsonify(
-        {
-            "success": False,
-            "message": "Veritabanı hatası, lütfen tekrar deneyin.",
-        }
-    ), 500
+    return jsonify({
+        "success": False,
+        "message": "Veritabanı hatası, lütfen tekrar deneyin.",
+    }), 500
+
+
+@bp.get("/payments/")
+def payment_page():
+    """Ödeme sayfası (arayüz)."""
+    return render_template("payments/index.html")
