@@ -44,9 +44,18 @@ def lock_seats(seats, event_id=DEFAULT_EVENT_ID, now=None):
     expires = now + timedelta(minutes=LOCK_MINUTES)
     db = get_db()
 
-    # BEGIN IMMEDIATE: yazma kilidini hemen alır, iki istek aynı anda
-    # aynı koltuğu kilitleyemez (eski _mutex'in yerini alır).
-    db.execute("BEGIN IMMEDIATE")
+    # BEGIN IMMEDIATE: yazma kilidini hemen alır, eş zamanlı yarış durumunda
+    # kilit alınıncaya kadar kısa süreli tekrar dener.
+    import time
+    for attempt in range(5):
+        try:
+            db.execute("BEGIN IMMEDIATE")
+            break
+        except sqlite3.OperationalError as e:
+            if "locked" in str(e).lower() and attempt < 4:
+                time.sleep(0.02 * (attempt + 1))
+                continue
+            raise
     try:
         _release_expired(db, now)
 
