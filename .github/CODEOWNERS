@@ -47,20 +47,20 @@
 /docs/decisions/                   @iu-dev-hub/scrum-masters
 
 # Course guides and onboarding (instructor)
-/docs/guides/                      @imyo-dev-hub @hknd1977
-/docs/getting-started.md           @imyo-dev-hub @hknd1977
-/CONTRIBUTING.md                   @imyo-dev-hub @hknd1977
-/LICENSE                           @imyo-dev-hub @hknd1977
+/docs/guides/                      @imyo-dev-hub @hakan-duman-acad
+/docs/getting-started.md           @imyo-dev-hub @hakan-duman-acad
+/CONTRIBUTING.md                   @imyo-dev-hub @hakan-duman-acad
+/LICENSE                           @imyo-dev-hub @hakan-duman-acad
 
 # Customer documents (instructor = customer)
-/docs/product-vision.md            @imyo-dev-hub @hknd1977
-/docs/business-rules.md            @imyo-dev-hub @hknd1977
+/docs/product-vision.md            @imyo-dev-hub @hakan-duman-acad
+/docs/business-rules.md            @imyo-dev-hub @hakan-duman-acad
 
 # Roles, CI, repository settings and dependencies: instructor only
-/ROLES.md                          @imyo-dev-hub @hknd1977
-/.github/                          @imyo-dev-hub @hknd1977
-/requirements.txt                  @imyo-dev-hub @hknd1977
-/pyproject.toml                    @imyo-dev-hub @hknd1977
+/ROLES.md                          @imyo-dev-hub @hakan-duman-acad
+/.github/                          @imyo-dev-hub @hakan-duman-acad
+/requirements.txt                  @imyo-dev-hub @hakan-duman-acad
+/pyproject.toml                    @imyo-dev-hub @hakan-duman-acad
 
 # --- Mobil Uygulama (team-mobile) ---
 /app/api/                                 @iu-dev-hub/team-mobile
