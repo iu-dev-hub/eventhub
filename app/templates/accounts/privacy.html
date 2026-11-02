@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Gizlilik Politikası{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='accounts.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="legal-card">
+  <div class="legal-header">
+    <span class="legal-demo-badge">DEMO TASLAĞI</span>
+    <h1 style="font-size: 1.8rem; margin: 0 0 0.5rem 0; color: var(--text-main);">
+      Gizlilik Politikası
+    </h1>
+    <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">
+      Kişisel verilerinizin nasıl toplandığı, kullanıldığı ve korunduğu hakkında bilgi edinmek
+      için lütfen gizlilik politikamızı okuyunuz.
+    </p>
+  </div>
+
+  <div class="legal-section">
+    <h3>1. Toplanan Veriler</h3>
+    <p>
+      EventHub, Iğdır Üniversitesi Yazılım Mühendisliği 4. Sınıf Yazılım Sınama ve Doğrulama Dersi kapsamında geliştirilen bir etkinlik yönetim prototipidir. Platforma kayıt olan kullanıcılardan ad, soyad, e-posta adresi ve isteğe bağlı olarak öğrenci statüsü bilgilerini toplamaktadır. Kullanıcı parolaları açık metin olarak asla tutulmaz; Werkzeug scrypt algoritması kullanılarak kriptografik özetleme yöntemiyle saklanır.
+    </p>
+  </div>
+
+  <div class="legal-section">
+    <h3>2. Verilerin Kullanım Amaçları</h3>
+    <p>
+      Toplanan kişisel veriler; hesap oluşturma, oturum yönetimi, yetkilendirme denetimi, etkinlik biletleme
+      süreçleri ve kullanıcı tercihlerine bağlı bildirimlerin iletilmesi amacıyla işlenmektedir.
+    </p>
+  </div>
+
+  <div class="legal-section">
+    <h3>3. Verilerin Paylaşımı</h3>
+    <p>
+      Kullanıcı bilgileri üçüncü şahıslarla ticari amaçla paylaşılmaz. Yalnızca etkinlik organizatörleri,
+      ilgili etkinliğe katılım listesi doğrultusunda katılımcı ad ve soyad bilgilerine erişebilir.
+    </p>
+  </div>
+
+  <div class="legal-section">
+    <h3>4. Veri Güvenliği</h3>
+    <p>
+      EventHub, OWASP güvenlik standartları gereğince brute-force saldırılarına karşı geçici hesap kilitleme,
+      zamanlama analizi (timing-attack) koruması ve güvenli oturum çerezleri uygulamaktadır.
+    </p>
+  </div>
+
+  <div class="legal-section">
+    <h3>5. Kullanıcı Hakları (KVKK / GDPR)</h3>
+    <p>
+      Kullanıcılar diledikleri zaman profil ekranı üzerinden ad ve soyad bilgilerini güncelleyebilir,
+      hesap ayarlarından şifrelerini değiştirebilir ve bildirim tercihlerini yönetebilirler.
+    </p>
+  </div>
+
+  <div style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+    <a href="{{ url_for('accounts.kvkk') }}" class="forgot-link">KVKK Aydınlatma Metni'ni Oku &rarr;</a>
+    <a href="{{ url_for('accounts.register') }}" class="btn btn-secondary" style="width: auto;">Kayıt Ekranına Dön</a>
+  </div>
+</div>
+{% endblock %}

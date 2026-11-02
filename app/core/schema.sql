@@ -38,14 +38,84 @@ CREATE TABLE IF NOT EXISTS tickets (
     created_at TEXT NOT NULL
 );
 -- Owner: team-accounts
-DROP TABLE IF EXISTS users;
-CREATE TABLE users (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    email         TEXT    NOT NULL UNIQUE,
-    password_hash TEXT    NOT NULL,
-    role          TEXT    NOT NULL DEFAULT 'participant',
-    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS users (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    first_name     TEXT    NOT NULL DEFAULT '',
+    last_name      TEXT    NOT NULL DEFAULT '',
+    email          TEXT    NOT NULL UNIQUE,
+    password_hash  TEXT    NOT NULL,
+    role           TEXT    NOT NULL DEFAULT 'participant',
+    is_student     BOOLEAN NOT NULL DEFAULT 0,
+    student_number TEXT    DEFAULT NULL,
+    notify_email   BOOLEAN NOT NULL DEFAULT 1,
+    avatar_url     TEXT    DEFAULT NULL,
+    created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
+CREATE TABLE IF NOT EXISTS password_resets (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    token_hash TEXT    NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    used       BOOLEAN NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+
+-- Owner: team-payments
+-- Koltuklar: etkinlik başına koltuk kodu benzersizdir.
+-- event_id için FOREIGN KEY şimdilik yok: events tablosu henüz şemada tanımlı değil.
+-- team-events tabloyu ekleyince interface-contract.md'ye yazılıp FK eklenecek.
+CREATE TABLE IF NOT EXISTS seats (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id     INTEGER NOT NULL,
+    seat_code    TEXT    NOT NULL,
+    status       TEXT    NOT NULL DEFAULT 'available'
+                 CHECK (status IN ('available', 'locked', 'sold')),
+    locked_until TEXT,
+    UNIQUE (event_id, seat_code)
+);
+
+-- Owner: team-payments
+-- Ödeme denemeleri: başarılı ve başarısız hepsi tutulur (eski payment_logs yerine).
+-- Kartın tamamı ASLA saklanmaz, yalnızca son 4 hane.
+CREATE TABLE IF NOT EXISTS payments (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    amount     REAL,
+    card_last4 TEXT,
+    success    INTEGER NOT NULL CHECK (success IN (0, 1)),
+    message    TEXT    NOT NULL,
+    seats      TEXT    NOT NULL,  -- JSON metin: ["A1","A2"]
+    created_at TEXT    NOT NULL
+);
+
+-- Owner: team-payments
+-- Rezervasyonlar: başarılı ödemelerle ilişkili rezervasyon kaydı.
+-- idempotency_key benzersizdir (mükerrer ödeme/istek engelleme).
+CREATE TABLE IF NOT EXISTS reservations (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    payment_id      INTEGER NOT NULL,
+    event_id        INTEGER NOT NULL,
+    user_id         INTEGER,
+    idempotency_key TEXT UNIQUE,
+    ticket_code     TEXT UNIQUE,
+    status          TEXT NOT NULL DEFAULT 'confirmed'
+                    CHECK (status IN ('pending', 'confirmed', 'cancelled')),
+    created_at      TEXT NOT NULL,
+    FOREIGN KEY (payment_id) REFERENCES payments(id)
+);
+
+-- Owner: team-payments
+-- Rezervasyon-Koltuk ilişkisi: etkinlikte bir koltuk aynı anda yalnızca tek bir rezervasyonda bulunabilir.
+CREATE TABLE IF NOT EXISTS reservation_seats (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservation_id INTEGER NOT NULL,
+    event_id       INTEGER NOT NULL,
+    seat_code      TEXT NOT NULL,
+    created_at     TEXT NOT NULL,
+    FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,
+    UNIQUE (event_id, seat_code)
+);

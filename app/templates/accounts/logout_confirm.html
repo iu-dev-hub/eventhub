@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Çıkış Yap{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='accounts.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="auth-single-container" style="text-align: center; max-width: 440px;">
+  <div class="modal-icon-danger">
+    <span>🚪</span>
+  </div>
+  <h1 class="modal-title">Çıkış yapmak istediğinizden emin misiniz?</h1>
+  <p class="modal-desc">Mevcut oturumunuz sonlandırılacaktır.</p>
+
+  <div class="modal-actions">
+    <a href="{{ url_for('accounts.dashboard') }}" class="btn btn-secondary">
+      İptal
+    </a>
+    <form method="POST" action="{{ url_for('accounts.logout') }}" style="margin: 0;">
+      <button type="submit" class="btn btn-danger" style="width: 100%;">
+        Çıkış Yap
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}
