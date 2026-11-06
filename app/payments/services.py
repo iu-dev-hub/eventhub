@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from app.core.db import get_db
+from app.payments.gateway import get_payment_gateway
 
 # Koltuk kilidi süresi (dakika)
 LOCK_MINUTES = 10
@@ -44,9 +45,18 @@ def lock_seats(seats, event_id=DEFAULT_EVENT_ID, now=None):
     expires = now + timedelta(minutes=LOCK_MINUTES)
     db = get_db()
 
-    # BEGIN IMMEDIATE: yazma kilidini hemen alır, iki istek aynı anda
-    # aynı koltuğu kilitleyemez (eski _mutex'in yerini alır).
-    db.execute("BEGIN IMMEDIATE")
+    # BEGIN IMMEDIATE: yazma kilidini hemen alır, eş zamanlı yarış durumunda
+    # kilit alınıncaya kadar kısa süreli tekrar dener.
+    import time
+    for attempt in range(5):
+        try:
+            db.execute("BEGIN IMMEDIATE")
+            break
+        except sqlite3.OperationalError as e:
+            if "locked" in str(e).lower() and attempt < 4:
+                time.sleep(0.02 * (attempt + 1))
+                continue
+            raise
     try:
         _release_expired(db, now)
 
@@ -518,11 +528,13 @@ def get_seats_status(seats=None, event_id=DEFAULT_EVENT_ID, now=None):
 def _decide_payment(db, card_number, seats, event_id):
     """Ödeme kurallarını uygular, (success, message) döner.
 
-    Başarılıysa koltukları "sold" yapar. Commit işini çağıran yapar.
+    Harici ödeme sağlayıcı gateway adaptörünü kullanarak işlemi onaylar ve
+    başarılıysa koltukları "sold" yapar. Commit işini çağıran yapar.
     """
-    # BR-4.3: kart tam 16 haneli ve yalnızca rakam olmalı.
-    if len(card_number) != CARD_LENGTH or not card_number.isascii() or not card_number.isdigit():
-        return False, "Geçersiz kart"
+    gateway = get_payment_gateway()
+    charge_result = gateway.charge(card_number, amount=100)
+    if not charge_result["success"]:
+        return False, charge_result["message"]
 
     sold = []
     not_locked = []
@@ -543,21 +555,67 @@ def _decide_payment(db, card_number, seats, event_id):
     if not_locked:
         return False, "Koltuk kilitli değil"
 
-    if card_number.endswith("4242"):
-        # Başarılı ödeme: kilitli koltuklar "dolu" olur
-        for code in seats:
-            db.execute(
-                "UPDATE seats SET status = 'sold', locked_until = NULL "
-                "WHERE event_id = ? AND seat_code = ?",
-                (event_id, code),
-            )
-        return True, "Ödeme başarılı"
+    for code in seats:
+        db.execute(
+            "UPDATE seats SET status = 'sold', locked_until = NULL "
+            "WHERE event_id = ? AND seat_code = ?",
+            (event_id, code),
+        )
+    return True, charge_result["message"]
 
-    if card_number.endswith("0000"):
-        return False, "Yetersiz bakiye"
 
-    # Tanımsız kartlar da reddedilir ve loglanır
-    return False, "Geçersiz kart"
+
+_FAILED_ATTEMPTS = {}
+MAX_FAILED_ATTEMPTS = 5
+FAILED_WINDOW_SECONDS = 300
+
+
+def sanitize_card_number(raw_card: str) -> str:
+    """Kart numarasındaki boşluk ve tire karakterlerini temizler."""
+    if not isinstance(raw_card, str):
+        return ""
+    return raw_card.replace(" ", "").replace("-", "").strip()
+
+
+def check_rate_limit(client_id: str, now=None) -> bool:
+    """Belirli bir istemci için art arda hatalı deneme sayısını denetler."""
+    try:
+        from flask import current_app
+
+        if current_app and current_app.config.get("TESTING") and not current_app.config.get("ENABLE_RATE_LIMIT"):
+            return True
+    except RuntimeError:
+        pass
+
+    now = now or datetime.now()
+    cutoff = now - timedelta(seconds=FAILED_WINDOW_SECONDS)
+    attempts = [t for t in _FAILED_ATTEMPTS.get(client_id, []) if t > cutoff]
+    _FAILED_ATTEMPTS[client_id] = attempts
+    return len(attempts) < MAX_FAILED_ATTEMPTS
+
+
+def record_failed_attempt(client_id: str, now=None):
+    """Hatalı denemeyi hafızaya ekler."""
+    try:
+        from flask import current_app
+
+        if current_app and current_app.config.get("TESTING") and not current_app.config.get("ENABLE_RATE_LIMIT"):
+            return
+    except RuntimeError:
+        pass
+
+    now = now or datetime.now()
+    _FAILED_ATTEMPTS.setdefault(client_id, []).append(now)
+
+
+def reset_rate_limit(client_id: str):
+    """Başarılı işlemde limit sayacını sıfırlar."""
+    _FAILED_ATTEMPTS.pop(client_id, None)
+
+
+def clear_failed_attempts():
+    """Tüm başarısız deneme kayıtlarını temizler."""
+    _FAILED_ATTEMPTS.clear()
 
 
 def process_payment(
@@ -567,6 +625,7 @@ def process_payment(
     event_id=DEFAULT_EVENT_ID,
     user_id=None,
     idempotency_key=None,
+    client_id="default_client",
     now=None,
 ):
     """Sahte ödeme. Her deneme (başarılı/başarısız) payments tablosuna yazılır.
@@ -576,6 +635,14 @@ def process_payment(
     idempotency_key verilmişse ve daha önce kaydedilmişse mevcut rezervasyon döner.
     """
     now = now or datetime.now()
+    card_number = sanitize_card_number(card_number)
+
+    if not check_rate_limit(client_id, now):
+        return {
+            "success": False,
+            "message": "Çok fazla başarısız deneme, lütfen daha sonra tekrar deneyin.",
+        }
+
     db = get_db()
 
     db.execute("BEGIN IMMEDIATE")
@@ -648,6 +715,7 @@ def process_payment(
     _export_log(db)
 
     if success:
+        reset_rate_limit(client_id)
         return {
             "success": True,
             "ticketId": ticket_code,
@@ -657,6 +725,7 @@ def process_payment(
             "seats": seats,
             "createdAt": _iso(now),
         }
+    record_failed_attempt(client_id, now)
     return {"success": False, "message": message}
 
 

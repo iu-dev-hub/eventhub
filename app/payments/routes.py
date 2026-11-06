@@ -56,6 +56,8 @@ def pay():
     user_id = data.get("userId") or data.get("user_id")
     idempotency_key = data.get("idempotencyKey") or data.get("idempotency_key")
 
+    client_id = request.remote_addr or "client"
+
     # Görev gereği başarısız ödeme de 200 döner, sonuç success alanındadır
     result = services.process_payment(
         card_number,
@@ -64,6 +66,7 @@ def pay():
         event_id=event_id,
         user_id=user_id,
         idempotency_key=idempotency_key,
+        client_id=client_id,
     )
     return jsonify(result), 200
 
