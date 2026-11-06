@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{% block title %}Ödeme{% endblock %}
+
+{% block head %}
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    .payment-card {
+      border: 1px solid #dee2e6;
+      border-radius: 0.5rem;
+      box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+  <h1 class="h3 mb-4">Ödeme</h1>
+
+  <!-- Uyarı / Bildirim Alanı -->
+  <div id="alert-container" class="mb-3"></div>
+
+  <!-- Koltuk Seçilmemiş Uyarısı -->
+  <div id="no-seats-warning" class="alert alert-warning d-none" role="alert">
+    <h5 class="alert-heading">Koltuk Seçilmedi!</h5>
+    <p>Ödeme yapabilmek için lütfen önce bir etkinlikten koltuk seçiniz.</p>
+    <a href="/tickets/" class="btn btn-outline-warning">Koltuk Seçimine Git</a>
+  </div>
+
+  <!-- Başarılı Ödeme Ekranı -->
+  <div id="payment-success-card" class="card border-success payment-card d-none mb-4">
+    <div class="card-header bg-success text-white fw-bold">
+      İşlem Başarılı
+    </div>
+    <div class="card-body">
+      <h5 class="card-title text-success">Ödemeniz Başarıyla Tamamlandı!</h5>
+      <p class="card-text">Biletiniz oluşturulmuştur. Etkinlik girişinde bilet numaranızı gösterebilirsiniz.</p>
+      <ul class="list-group list-group-flush mb-3">
+        <li class="list-group-item d-flex justify-content-between">
+          <span>Bilet / İşlem Kodu:</span>
+          <strong id="success-ticket-id">-</strong>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span>Rezerve Edilen Koltuklar:</span>
+          <strong id="success-seats">-</strong>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span>Ödenen Tutar:</span>
+          <strong id="success-amount">-</strong>
+        </li>
+      </ul>
+      <div class="d-flex gap-2">
+        <a href="/" class="btn btn-outline-success">Ana Sayfa</a>
+        <a href="/tickets/" class="btn btn-success">Biletlerime Git</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ödeme ve Sipariş Alanı -->
+  <div id="payment-content" class="row g-4">
+    <!-- Sipariş özeti: mobilde üstte, masaüstünde sağda -->
+    <div class="col-12 col-md-5 order-1 order-md-2">
+      <div class="card payment-card">
+        <div class="card-header fw-bold">Sipariş Özeti</div>
+        <div class="card-body">
+          <ul id="seat-list" class="list-group list-group-flush mb-3"></ul>
+          <div class="d-flex justify-content-between fw-bold pt-2 border-top">
+            <span>Toplam Tutar:</span>
+            <span id="total-amount">0 TL</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Kart formu: mobilde altta, masaüstünde solda -->
+    <div class="col-12 col-md-7 order-2 order-md-1">
+      <div class="card payment-card">
+        <div class="card-header fw-bold">Kart Bilgileri</div>
+        <div class="card-body">
+          <form id="payment-form" novalidate>
+            <div class="mb-3">
+              <label for="card-name" class="form-label">Kart Sahibi</label>
+              <input type="text" class="form-control" id="card-name" autocomplete="cc-name" placeholder="Ad Soyad" required>
+              <div class="invalid-feedback">Kart sahibi adı en az 3 karakter olmalıdır.</div>
+            </div>
+
+            <div class="mb-3">
+              <label for="card-number" class="form-label">Kart Numarası</label>
+              <input type="text" class="form-control" id="card-number"
+                     inputmode="numeric" maxlength="19" placeholder="0000 0000 0000 0000"
+                     autocomplete="cc-number" required>
+              <div class="invalid-feedback">Kart numarası geçerli 16 haneli olmalıdır.</div>
+            </div>
+
+            <div class="row">
+              <div class="col-6 mb-3">
+                <label for="card-expiry" class="form-label">Son Kullanma (AA/YY)</label>
+                <input type="text" class="form-control" id="card-expiry"
+                       maxlength="5" placeholder="AA/YY" autocomplete="cc-exp" required>
+                <div class="invalid-feedback">Geçerli bir tarih giriniz (ör. 12/26).</div>
+              </div>
+              <div class="col-6 mb-3">
+                <label for="card-cvv" class="form-label">CVV</label>
+                <input type="text" class="form-control" id="card-cvv"
+                       inputmode="numeric" maxlength="3" placeholder="123" autocomplete="cc-csc" required>
+                <div class="invalid-feedback">CVV 3 haneli olmalıdır.</div>
+              </div>
+            </div>
+
+            <button type="submit" id="submit-btn" class="btn btn-primary w-100 py-2">
+              <span id="btn-spinner" class="spinner-border spinner-border-sm me-2 d-none" role="status" aria-hidden="true"></span>
+              <span id="btn-text">Ödemeyi Tamamla</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const SEAT_PRICE = 150;
+  const SEAT_PAGE_URL = "/tickets/";
+  const STORAGE_KEY = "selectedSeats";
+
+  function loadSeats() {
+    // 1. URL parametresinden kontrol (testler ve bağlantılar için)
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramSeats = urlParams.get("seats");
+    if (paramSeats) {
+      return paramSeats.split(",").map(s => s.trim()).filter(Boolean);
+    }
+    // 2. localStorage üzerinden kontrol
+    try {
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (Array.isArray(stored) && stored.length > 0) {
+        return stored;
+      }
+    } catch (e) {}
+    // 3. Varsayılan
+    return [];
+  }
+
+  const seats = loadSeats();
+
+  const noSeatsWarning = document.getElementById("no-seats-warning");
+  const paymentContent = document.getElementById("payment-content");
+  const alertContainer = document.getElementById("alert-container");
+
+  function showAlert(message, type = "danger") {
+    alertContainer.innerHTML = `
+      <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Kapat"></button>
+      </div>
+    `;
+  }
+
+  function clearAlert() {
+    alertContainer.innerHTML = "";
+  }
+
+  if (seats.length === 0) {
+    noSeatsWarning.classList.remove("d-none");
+    paymentContent.classList.add("d-none");
+  } else {
+    // Koltuk listesini ve toplam tutarı doldur
+    const list = document.getElementById("seat-list");
+    seats.forEach(function (seat) {
+      const li = document.createElement("li");
+      li.className = "list-group-item d-flex justify-content-between";
+
+      const name = document.createElement("span");
+      name.textContent = "Koltuk " + seat;
+
+      const price = document.createElement("span");
+      price.textContent = SEAT_PRICE + " TL";
+
+      li.appendChild(name);
+      li.appendChild(price);
+      list.appendChild(li);
+    });
+
+    const totalAmount = seats.length * SEAT_PRICE;
+    document.getElementById("total-amount").textContent = totalAmount + " TL";
+  }
+
+  // Kart numarasını boşluklarla biçimlendir
+  const cardNumberInput = document.getElementById("card-number");
+  cardNumberInput.addEventListener("input", function (e) {
+    let value = e.target.value.replace(/\D/g, "");
+    if (value.length > 16) value = value.slice(0, 16);
+    const parts = value.match(/.{1,4}/g);
+    e.target.value = parts ? parts.join(" ") : value;
+  });
+
+  // Son kullanma tarihini AA/YY olarak biçimlendir
+  const cardExpiryInput = document.getElementById("card-expiry");
+  cardExpiryInput.addEventListener("input", function (e) {
+    let value = e.target.value.replace(/\D/g, "");
+    if (value.length > 4) value = value.slice(0, 4);
+    if (value.length >= 2) {
+      e.target.value = value.slice(0, 2) + "/" + value.slice(2);
+    } else {
+      e.target.value = value;
+    }
+  });
+
+  // Form doğrulama yardımcıları
+  function setValid(input, ok) {
+    input.classList.toggle("is-invalid", !ok);
+    input.classList.toggle("is-valid", ok);
+    return ok;
+  }
+
+  function validateForm() {
+    const name = document.getElementById("card-name");
+    const number = document.getElementById("card-number");
+    const expiry = document.getElementById("card-expiry");
+    const cvv = document.getElementById("card-cvv");
+
+    const rawNumber = number.value.replace(/\s/g, "");
+    const okName = setValid(name, name.value.trim().length >= 3);
+    const okNumber = setValid(number, /^\d{16}$/.test(rawNumber));
+    const okExpiry = setValid(expiry, /^(0[1-9]|1[0-2])\/\d{2}$/.test(expiry.value));
+    const okCvv = setValid(cvv, /^\d{3}$/.test(cvv.value));
+    return okName && okNumber && okExpiry && okCvv;
+  }
+
+  const form = document.getElementById("payment-form");
+  const submitBtn = document.getElementById("submit-btn");
+  const btnSpinner = document.getElementById("btn-spinner");
+  const btnText = document.getElementById("btn-text");
+
+  function setLoading(loading) {
+    submitBtn.disabled = loading;
+    if (loading) {
+      btnSpinner.classList.remove("d-none");
+      btnText.textContent = "İşlem Yapılıyor...";
+    } else {
+      btnSpinner.classList.add("d-none");
+      btnText.textContent = "Ödemeyi Tamamla";
+    }
+  }
+
+  form.addEventListener("submit", async function (event) {
+    event.preventDefault();
+    clearAlert();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    if (seats.length === 0) {
+      showAlert("Lütfen önce koltuk seçiniz.", "warning");
+      return;
+    }
+
+    const rawCardNumber = cardNumberInput.value.replace(/\s/g, "");
+    const totalAmount = seats.length * SEAT_PRICE;
+
+    setLoading(true);
+
+    try {
+      // 1. Önce koltukları kilitlemeyi dene (zaten kilitli değilse)
+      const lockResp = await fetch("/api/seats/lock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seats: seats })
+      });
+
+      // Eğer 409 dönerse ve koltuk başkası tarafından alınmışsa uyar
+      if (!lockResp.ok && lockResp.status === 409) {
+        const lockData = await lockResp.json();
+        // Eğer koltuk bizim tarafımızdan zaten kilitlenmemişse ve hata veriyorsa
+        showAlert(lockData.message || "Seçilen koltuklar artık müsait değil veya başkası tarafından kilitlendi.", "danger");
+        setLoading(false);
+        return;
+      }
+
+      // 2. Ödeme isteği gönder
+      const payResp = await fetch("/api/payment/pay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardNumber: rawCardNumber,
+          amount: totalAmount,
+          seats: seats
+        })
+      });
+
+      const payData = await payResp.json();
+
+      if (payData.success) {
+        // Başarılı ödeme
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch (e) {}
+
+        paymentContent.classList.add("d-none");
+        const successCard = document.getElementById("payment-success-card");
+        document.getElementById("success-ticket-id").textContent = payData.ticketId || "T" + Math.floor(10000 + Math.random() * 90000);
+        document.getElementById("success-seats").textContent = seats.join(", ");
+        document.getElementById("success-amount").textContent = totalAmount + " TL";
+        successCard.classList.remove("d-none");
+      } else {
+        // Başarısız ödeme (örn: bakiye yetersiz, geçersiz kart)
+        showAlert(payData.message || "Ödeme işlemi gerçekleştirilemedi. Lütfen kart bilgilerinizi kontrol ediniz.", "danger");
+      }
+    } catch (err) {
+      showAlert("Sunucu ile bağlantı kurulamadı. Lütfen internet bağlantınızı kontrol edip tekrar deneyiniz.", "danger");
+    } finally {
+      setLoading(false);
+    }
+  });
+</script>
+{% endblock %}
+
