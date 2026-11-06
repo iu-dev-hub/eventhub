@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Biletlerim - EventHub{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1" id="my-tickets-title">Biletlerim</h1>
+            <p class="text-muted mb-0">Satın aldığınız ve rezerve ettiğiniz tüm biletler.</p>
+        </div>
+        <a href="/" class="btn btn-outline-secondary">← Etkinliklere Dön</a>
+    </div>
+
+    {% if not tickets %}
+    <div class="card text-center p-5 shadow-sm border-0 bg-light" id="no-tickets-container">
+        <div class="card-body">
+            <div class="mb-3">
+                <i class="bi bi-ticket-perforated text-muted" style="font-size: 3rem;"></i>
+            </div>
+            <h4 class="h5 text-dark" id="no-tickets-message">Henüz kayıtlı biletiniz bulunmuyor</h4>
+            <p class="text-muted">İlginizi çeken etkinliklere göz atarak hemen bilet alabilirsiniz.</p>
+            <a href="/" class="btn btn-primary mt-2">Etkinlikleri Keşfet</a>
+        </div>
+    </div>
+    {% else %}
+    <div class="row row-cols-1 row-cols-md-2 g-4" id="tickets-list">
+        {% for ticket in tickets %}
+        <div class="col">
+            <div class="card h-100 shadow-sm border-0 border-start border-4 border-primary ticket-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <span class="badge bg-primary text-uppercase font-monospace ticket-code">
+                            {{ ticket.ticket_code or ticket.ticketId or 'TKT-00000' }}
+                        </span>
+                        {% if ticket.status in ['confirmed', 'paid'] %}
+                        <span class="badge bg-success status-badge">Geçerli</span>
+                        {% elif ticket.status == 'cancelled' %}
+                        <span class="badge bg-secondary status-badge">İptal Edildi</span>
+                        {% else %}
+                        <span class="badge bg-warning text-dark status-badge">{{ ticket.status }}</span>
+                        {% endif %}
+                    </div>
+
+                    <h5 class="card-title text-dark mb-2 ticket-event-title">
+                        {{ ticket.event_title or 'Etkinlik Adı' }}
+                    </h5>
+
+                    <ul class="list-unstyled text-muted small mb-3">
+                        <li class="mb-1">
+                            <strong>Tarih:</strong> <span class="ticket-date">{{ ticket.event_date or ticket.created_at }}</span>
+                        </li>
+                        <li class="mb-1">
+                            <strong>Mekan:</strong> <span class="ticket-venue">{{ ticket.venue_name or 'Etkinlik Salonu' }}</span>
+                        </li>
+                        <li class="mb-1">
+                            <strong>Koltuklar:</strong> 
+                            <span class="ticket-seats font-monospace text-dark fw-bold">
+                                {% if ticket.seats is iterable and ticket.seats is not string %}
+                                    {{ ticket.seats | join(', ') }}
+                                {% else %}
+                                    {{ ticket.seats or '-' }}
+                                {% endif %}
+                            </span>
+                        </li>
+                        {% if ticket.amount %}
+                        <li>
+                            <strong>Tutar:</strong> <span>{{ ticket.amount }} TL</span>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+                <div class="card-footer bg-transparent border-top-0 d-flex justify-content-between align-items-center">
+                    <small class="text-muted">Kayıt: {{ ticket.created_at }}</small>
+                    <span class="badge bg-light text-dark border">Giriş QR Kodu Hazır</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
