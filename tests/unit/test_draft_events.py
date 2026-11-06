@@ -14,13 +14,11 @@ def setup_unit_db(app):
         db = get_db()
         cursor = db.cursor()
         
-        # 1. Venues tablosu dinamik hazırlık
         venue_info = cursor.execute("PRAGMA table_info(venues)").fetchall()
         v_cols = [col["name"] for col in venue_info]
         if "id" in v_cols and "name" in v_cols and "capacity" in v_cols:
             cursor.execute("INSERT OR IGNORE INTO venues (id, name, address, capacity) VALUES (1, 'Ana Salon', 'Ankara', 100)")
         
-        # 2. Users tablosu gerçek şema kısıtlarına (NOT NULL) uygun dinamik INSERT
         user_info = cursor.execute("PRAGMA table_info(users)").fetchall()
         insert_cols = []
         insert_vals = []
@@ -51,10 +49,8 @@ def setup_unit_db(app):
         val_placeholder = ", ".join(["?"] * len(insert_vals))
         cursor.execute(f"INSERT OR IGNORE INTO users ({col_str}) VALUES ({val_placeholder})", tuple(insert_vals))
         
-        # Onaysız test kullanıcısı (id: 2) için de aynı dinamik ekleme
         insert_vals_2 = [2 if c == "id" else ("participant" if c == "role" else val) for c, val in zip(insert_cols, insert_vals)]
         cursor.execute(f"INSERT OR IGNORE INTO users ({col_str}) VALUES ({val_placeholder})", tuple(insert_vals_2))
-        
         db.commit()
 
 
@@ -136,8 +132,8 @@ def test_zero_price_is_handled_as_free(app, monkeypatch):
         assert True
 
 
-def test_unapproved_or_unauthorized_organizer_cannot_create_draft(app, monkeypatch):
-    """BR-1.5: Onaysız veya yetkisiz kullanıcı create_draft_event() ile kayıt oluşturamamalı, EventPermissionError fırlatmalı ve DB değişmemelidir."""
+def test_is_approved_organizer_false_raises_permission_error_and_does_not_save(app, monkeypatch):
+    """is_approved_organizer False döndüğünde create_draft_event() fonksiyonunun EventPermissionError fırlattığını ve events tablosuna kayıt eklenmediğini doğrula."""
     import app.events.services as services_mod
     monkeypatch.setattr(services_mod, "is_approved_organizer", lambda *args, **kwargs: False)
 
@@ -151,7 +147,7 @@ def test_unapproved_or_unauthorized_organizer_cannot_create_draft(app, monkeypat
             create_draft_event(
                 db=db,
                 organizer_id=2,
-                title="Yetkisiz Taslak Denemesi",
+                title="Onaysız Organizatör Denemesi",
                 category="Eğitim",
                 venue="Ana Salon",
                 start_time="2026-12-01T10:00",
@@ -162,4 +158,4 @@ def test_unapproved_or_unauthorized_organizer_cannot_create_draft(app, monkeypat
 
         cursor.execute("SELECT COUNT(*) as cnt FROM events")
         final_count = cursor.fetchone()["cnt"]
-        assert final_count == initial_count, "Yetkisiz denemede veritabanına etkinlik kaydedilmemelidir."
+        assert final_count == initial_count, "Onaysız organizatör denemesinde veritabanına kayıt eklenmemelidir."
