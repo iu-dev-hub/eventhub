@@ -19,52 +19,47 @@ def mock_organizer_auth(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def setup_unit_db(app):
-    """Birim testler için veritabanı tablolarını tertemiz sıfırdan kur ve test verilerini hazırla."""
+    """Mevcut gerçek test şemasına uygun olarak kullanıcı ve salon kayıtlarını dinamik ve hatasız hazırla."""
     with app.app_context():
         db = get_db()
         cursor = db.cursor()
         
-        cursor.execute("PRAGMA foreign_keys = OFF;")
+        # Venues tablosu dinamik hazırlık
+        venue_info = cursor.execute("PRAGMA table_info(venues)").fetchall()
+        v_cols = [col["name"] for col in venue_info]
+        if "id" in v_cols and "name" in v_cols and "capacity" in v_cols:
+            cursor.execute("INSERT OR IGNORE INTO venues (id, name, address, capacity) VALUES (1, 'Ana Salon', 'Ankara', 100)")
         
-        # Mevcut tabloları güvenle düşürüp güncel test şemasıyla yeniden oluşturalım
-        cursor.execute("DROP TABLE IF EXISTS events;")
-        cursor.execute("DROP TABLE IF EXISTS venues;")
-        cursor.execute("DROP TABLE IF EXISTS users;")
-        
-        cursor.execute("""
-            CREATE TABLE users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                role TEXT,
-                organizer_approved INTEGER DEFAULT 0
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE venues (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                address TEXT,
-                capacity INTEGER
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL,
-                category TEXT,
-                venue_id INTEGER,
-                start_time TEXT,
-                end_time TEXT,
-                capacity INTEGER,
-                price REAL,
-                status TEXT DEFAULT 'draft',
-                organizer_id INTEGER,
-                FOREIGN KEY (venue_id) REFERENCES venues(id),
-                FOREIGN KEY (organizer_id) REFERENCES users(id)
-            )
-        """)
-        
-        cursor.execute("INSERT INTO venues (id, name, address, capacity) VALUES (1, 'Ana Salon', 'Ankara', 100)")
-        cursor.execute("INSERT INTO users (id, role, organizer_approved) VALUES (1, 'organizer', 1)")
+        # Users tablosu gerçek şema kısıtlarına uygun dinamik INSERT
+        user_info = cursor.execute("PRAGMA table_info(users)").fetchall()
+        insert_cols = []
+        insert_vals = []
+        for col in user_info:
+            cname = col["name"]
+            notnull = col["notnull"]
+            dflt = col["dflt_value"]
+            pk = col["pk"]
+            
+            if cname == "id":
+                insert_cols.append("id")
+                insert_vals.append(1)
+            elif cname == "role":
+                insert_cols.append("role")
+                insert_vals.append("organizer")
+            elif notnull and dflt is None and not pk:
+                insert_cols.append(cname)
+                if "email" in cname:
+                    insert_vals.append("test@example.com")
+                elif "name" in cname or "user" in cname:
+                    insert_vals.append("testuser")
+                elif "pass" in cname:
+                    insert_vals.append("hash")
+                else:
+                    insert_vals.append("test")
+                    
+        col_str = ", ".join(insert_cols)
+        val_placeholder = ", ".join(["?"] * len(insert_vals))
+        cursor.execute(f"INSERT OR IGNORE INTO users ({col_str}) VALUES ({val_placeholder})", tuple(insert_vals))
         db.commit()
 
 
