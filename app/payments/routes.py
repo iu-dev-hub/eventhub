@@ -3,7 +3,7 @@ from flask import jsonify, render_template, request
 
 import sqlite3
 
-from flask import current_app, jsonify, render_template, request
+from flask import current_app, jsonify, render_template, request, session
 
 from app.payments import bp, services
 
@@ -114,6 +114,14 @@ def unlock_seats():
         "message": "Koltuk kilidi kaldırıldı",
         "released": released,
     }), 200
+
+
+@bp.get("/api/tickets/my-tickets")
+def my_tickets_api():
+    """Kullanıcının biletlerini JSON olarak döner."""
+    user_id = session.get("user_id") or request.args.get("user_id", type=int) or 1
+    tickets = services.get_user_tickets(user_id)
+    return jsonify({"success": True, "tickets": tickets}), 200
 
 
 @bp.errorhandler(sqlite3.Error)
