@@ -6,6 +6,7 @@ bu sunucuya gider. Sunucuyu elle başlatmanız gerekmez.
 """
 
 import threading
+import sqlite3
 
 import pytest
 from werkzeug.serving import make_server
@@ -20,6 +21,15 @@ def base_url(tmp_path_factory):
     app = create_app({"TESTING": True, "DATABASE": str(database)})
     with app.app_context():
         init_db()
+        # E2E testleri için veritabanına doğrudan test salonu ekliyoruz
+        conn = sqlite3.connect(str(database))
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR IGNORE INTO venues (id, name, address, capacity) VALUES (1, ?, ?, ?)",
+            ("Ana Salon", "Ankara", 100),
+        )
+        conn.commit()
+        conn.close()
 
     server = make_server("127.0.0.1", 0, app)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
