@@ -93,3 +93,59 @@ CREATE TABLE IF NOT EXISTS events (
 
 CREATE INDEX IF NOT EXISTS idx_events_organizer_id ON events(organizer_id);
 CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
+
+
+-- Owner: team-payments
+-- Koltuklar: etkinlik başına koltuk kodu benzersizdir.
+-- event_id için FOREIGN KEY şimdilik yok: events tablosu henüz şemada tanımlı değil.
+-- team-events tabloyu ekleyince interface-contract.md'ye yazılıp FK eklenecek.
+CREATE TABLE IF NOT EXISTS seats (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id     INTEGER NOT NULL,
+    seat_code    TEXT    NOT NULL,
+    status       TEXT    NOT NULL DEFAULT 'available'
+                 CHECK (status IN ('available', 'locked', 'sold')),
+    locked_until TEXT,
+    UNIQUE (event_id, seat_code)
+);
+
+-- Owner: team-payments
+-- Ödeme denemeleri: başarılı ve başarısız hepsi tutulur (eski payment_logs yerine).
+-- Kartın tamamı ASLA saklanmaz, yalnızca son 4 hane.
+CREATE TABLE IF NOT EXISTS payments (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    amount     REAL,
+    card_last4 TEXT,
+    success    INTEGER NOT NULL CHECK (success IN (0, 1)),
+    message    TEXT    NOT NULL,
+    seats      TEXT    NOT NULL,  -- JSON metin: ["A1","A2"]
+    created_at TEXT    NOT NULL
+);
+
+-- Owner: team-payments
+-- Rezervasyonlar: başarılı ödemelerle ilişkili rezervasyon kaydı.
+-- idempotency_key benzersizdir (mükerrer ödeme/istek engelleme).
+CREATE TABLE IF NOT EXISTS reservations (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    payment_id      INTEGER NOT NULL,
+    event_id        INTEGER NOT NULL,
+    user_id         INTEGER,
+    idempotency_key TEXT UNIQUE,
+    ticket_code     TEXT UNIQUE,
+    status          TEXT NOT NULL DEFAULT 'confirmed'
+                    CHECK (status IN ('pending', 'confirmed', 'cancelled')),
+    created_at      TEXT NOT NULL,
+    FOREIGN KEY (payment_id) REFERENCES payments(id)
+);
+
+-- Owner: team-payments
+-- Rezervasyon-Koltuk ilişkisi: etkinlikte bir koltuk aynı anda yalnızca tek bir rezervasyonda bulunabilir.
+CREATE TABLE IF NOT EXISTS reservation_seats (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservation_id INTEGER NOT NULL,
+    event_id       INTEGER NOT NULL,
+    seat_code      TEXT NOT NULL,
+    created_at     TEXT NOT NULL,
+    FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,
+    UNIQUE (event_id, seat_code)
+);
