@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Kullanım Koşulları{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='accounts.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="legal-card">
+  <div class="legal-header">
+    <span class="legal-demo-badge">DEMO TASLAĞI</span>
+    <h1 style="font-size: 1.8rem; margin: 0 0 0.5rem 0; color: var(--text-main);">
+      Kullanım Koşulları
+    </h1>
+    <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">
+      EventHub platformunu kullanmadan önce lütfen aşağıdaki koşulları dikkatlice okuyunuz.
+      Bu koşullar, platformun kullanımına ilişkin hak ve sorumlulukları açıklar.
+    </p>
+  </div>
+
+  <div class="legal-section">
+    <h3>1. Genel Hükümler</h3>
+    <p>
+      EventHub, kullanıcıların üniversite ve çevre etkinliklerini keşfetmelerine, etkinliklere kayıt olmalarına
+      ve biletleme süreçlerini yönetmelerine olanak tanıyan bir etkinlik yönetim platformudur. Bu platform,
+      Iğdır Üniversitesi Yazılım Mühendisliği 4. Sınıf Yazılım Sınama ve Doğrulama Dersi kapsamında bir prototip
+      olarak geliştirilmektedir.
+    </p>
+  </div>
+
+  <div class="legal-section">
+    <h3>2. Hesap Oluşturma ve Güvenlik</h3>
+    <p>
+      Kullanıcılar kayıt esnasında ad, soyad ve geçerli bir e-posta adresi sağlamakla yükümlüdür. Hesap şifrelerinin
+      güvenliği kullanıcının kendi sorumluluğundadır. EventHub, kullanıcı şifrelerini OWASP standartlarına uygun biçimde
+      scrypt şifreleme algoritmasıyla güvenli olarak saklamaktadır.
+    </p>
+  </div>
+
+  <div class="legal-section">
+    <h3>3. Etkinliklere Katılım</h3>
+    <p>
+      Etkinlik detayları, salon kapasiteleri ve kontenjan yönetimi ilgili organizatör ekiplerin kontrolündedir.
+      Öğrenci statüsüne sahip kullanıcılar, öğrenci belgeleri doğrultusunda avantajlı kontenjan ve indirimlerden
+      yararlanabilirler.
+    </p>
+  </div>
+
+  <div class="legal-section">
+    <h3>4. İçerik ve Paylaşımlar</h3>
+    <p>
+      Platform üzerinde üçüncü şahısların haklarını ihlal eden, yanıltıcı veya hukuka aykırı içeriklerin
+      paylaşılması yasaktır. İhlal tespit edilen hesaplar geçici veya kalıcı olarak durdurulabilir.
+    </p>
+  </div>
+
+  <div class="legal-section">
+    <h3>5. Sorumluluk Sınırları</h3>
+    <p>
+      Platform "olduğu gibi" (as-is) sunulmakta olup ders içi geliştirme ve test amaçlıdır.
+      Ticari ve nihai veri saklama garantisi verilmez. Bu metin demo amaçlı bir taslaktır.
+    </p>
+  </div>
+
+  <div style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+    <a href="{{ url_for('accounts.privacy') }}" class="forgot-link">Gizlilik Politikası'nı İncele &rarr;</a>
+    <a href="{{ url_for('accounts.register') }}" class="btn btn-secondary" style="width: auto;">Kayıt Ekranına Dön</a>
+  </div>
+</div>
+{% endblock %}

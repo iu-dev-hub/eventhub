@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Karşılama Paneli{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='accounts.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-layout">
+  <!-- Sol Sidebar (Ekran 8) -->
+  <aside class="sidebar">
+    <a href="{{ url_for('accounts.dashboard') }}" class="sidebar-link active">
+      <span>🏠</span> Ana Sayfa
+    </a>
+    <a href="{{ url_for('accounts.profile') }}" class="sidebar-link">
+      <span>👤</span> Profilim
+    </a>
+    <a href="{{ url_for('accounts.settings') }}" class="sidebar-link">
+      <span>⚙️</span> Ayarlar
+    </a>
+    <a href="{{ url_for('accounts.logout') }}" class="sidebar-link text-danger" onclick="return confirmLogout(event)">
+      <span>🚪</span> Çıkış Yap
+    </a>
+  </aside>
+
+  <!-- Sağ Ana Panel (Ekran 8 & 9) -->
+  <div class="dashboard-main">
+    <div class="hero-welcome-card">
+      <h1>Tekrar Hoş Geldiniz, {{ user.first_name if user.first_name else user.email }}!</h1>
+      <p>EventHub'ta kayıtlı etkinlikler sizi bekliyor.</p>
+    </div>
+
+    <!-- Geçici İzleme Ekranı Bilgilendirme Kutusu (Ekran 8 & 9) -->
+    <div class="temporary-banner">
+      <span style="font-size: 1.3rem;">ℹ️</span>
+      <div>
+        <strong>Önemli Bilgilendirme:</strong>
+        <div>Bu ekran geçici bir izleme ekranıdır. Etkinlik listeleri, arama ve biletleme süreçleri diğer ekiplerin geliştirmeleriyle bu alana entegre edilecektir.</div>
+      </div>
+    </div>
+
+    <!-- Eylem Kartları (Ekran 8) -->
+    <div class="dashboard-cards-grid">
+      <!-- 1. Profilim -->
+      <div class="action-card">
+        <div>
+          <div class="action-card-header">
+            <div class="action-card-icon">👤</div>
+            <h3>Profilim</h3>
+          </div>
+          <p>Kişisel bilgilerinizi görüntüleyin ve ad/soyad güncellemelerinizi yapın.</p>
+        </div>
+        <div>
+          <a href="{{ url_for('accounts.profile') }}" class="btn btn-outline" style="width: 100%;">
+            Profilime Git &rarr;
+          </a>
+        </div>
+      </div>
+
+      <!-- 2. Ayarlar -->
+      <div class="action-card">
+        <div>
+          <div class="action-card-header">
+            <div class="action-card-icon">⚙️</div>
+            <h3>Ayarlar</h3>
+          </div>
+          <p>Hesap güvenliği, şifre değiştirme ve e-posta bildirim tercihlerinizi yönetin.</p>
+        </div>
+        <div>
+          <a href="{{ url_for('accounts.settings') }}" class="btn btn-outline" style="width: 100%;">
+            Ayarları Aç &rarr;
+          </a>
+        </div>
+      </div>
+
+      <!-- 3. Çıkış Yap -->
+      <div class="action-card">
+        <div>
+          <div class="action-card-header">
+            <div class="action-card-icon" style="background: #fee2e2; color: #dc2626;">🚪</div>
+            <h3>Çıkış Yap</h3>
+          </div>
+          <p>Oturumunuzu güvenli bir şekilde kapatarak cihazınızdan ayrılın.</p>
+        </div>
+        <div>
+          <button type="button" class="btn btn-danger" style="width: 100%;" onclick="openLogoutModal()">
+            Çıkış Yap &rarr;
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Çıkış Yap Onay Modalı (Ekran 13 - PB-08, TG-75) -->
+<div id="logout-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-dialog">
+    <div class="modal-icon-danger">
+      <span>🚪</span>
+    </div>
+    <h2 class="modal-title">Çıkış yapmak istediğinizden emin misiniz?</h2>
+    <p class="modal-desc">Mevcut oturumunuz sonlandırılacaktır.</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-secondary" onclick="closeLogoutModal()">
+        İptal
+      </button>
+      <form method="POST" action="{{ url_for('accounts.logout') }}" style="margin: 0;">
+        <button type="submit" class="btn btn-danger" style="width: 100%;">
+          Çıkış Yap
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function confirmLogout(event) {
+  event.preventDefault();
+  openLogoutModal();
+  return false;
+}
+
+function openLogoutModal() {
+  document.getElementById("logout-modal").style.display = "flex";
+}
+
+function closeLogoutModal() {
+  document.getElementById("logout-modal").style.display = "none";
+}
+</script>
+{% endblock %}
