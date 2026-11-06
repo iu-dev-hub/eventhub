@@ -8,18 +8,16 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture(autouse=True)
 def setup_test_db(app):
-    """Mevcut gerçek test şemasına uygun olarak entegrasyon test verilerini dinamik ve hatasız hazırla."""
+    """Mevcut gerçek test şemasına uygun olarak entegrasyon test verilerini dinamik ve hatasız hazırla (Foreign Key aktif)."""
     with app.app_context():
         db = get_db()
         cursor = db.cursor()
         
-        # Venues tablosu dinamik hazırlık
         venue_info = cursor.execute("PRAGMA table_info(venues)").fetchall()
         v_cols = [col["name"] for col in venue_info]
         if "id" in v_cols and "name" in v_cols and "capacity" in v_cols:
             cursor.execute("INSERT OR IGNORE INTO venues (id, name, address, capacity) VALUES (1, 'Ana Salon', 'Ankara', 100)")
         
-        # Users tablosu gerçek şema kısıtlarına uygun dinamik INSERT
         user_info = cursor.execute("PRAGMA table_info(users)").fetchall()
         insert_cols = []
         insert_vals = []
