@@ -208,3 +208,29 @@ def test_get_event_missing_or_invalid_id_returns_none(db):
     assert get_event(db, 12345) is None
     assert get_event(db, "1") is None
     assert get_event(db, True) is None
+
+
+def test_draft_is_saved_by_venue_id(db):
+    """TG-121: form `venue_id` gönderir; salon `venues.id` üzerinden bulunur."""
+    approve(db)
+    ok, event, errors = create_draft_event(db, 1, *ARGS[:2], "", *ARGS[3:], venue_id="1")
+    assert ok and errors == []
+    assert event["venue_id"] == 1 and event["status"] == "draft"
+
+
+@pytest.mark.parametrize("bad_venue_id", ["999", "abc", "-1", "1; DROP TABLE venues", "0"])
+def test_unknown_or_malformed_venue_id_is_rejected(db, bad_venue_id):
+    approve(db)
+    ok, event, errors = create_draft_event(db, 1, *ARGS[:2], "", *ARGS[3:], venue_id=bad_venue_id)
+    assert not ok and event is None
+    assert errors == ["Seçilen salon bulunamadı."]
+    assert db.execute("SELECT COUNT(*) FROM venues").fetchone()[0] == 1
+
+
+def test_venue_id_capacity_limit_uses_real_venue_capacity(db):
+    approve(db)
+    ok, event, errors = create_draft_event(
+        db, 1, *ARGS[:2], "", *ARGS[3:5], "101", "100", venue_id=1
+    )
+    assert not ok and event is None
+    assert errors == ["Etkinlik kapasitesi (101), salon kapasitesini (100) aşamaz."]

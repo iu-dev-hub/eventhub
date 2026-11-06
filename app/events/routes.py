@@ -1,6 +1,6 @@
-from flask import flash, jsonify, redirect, render_template, request, url_for
+from flask import flash, g, jsonify, redirect, render_template, request, url_for
 
-from app.accounts.security import role_required
+from app.accounts.security import login_required, role_required
 from app.core.db import get_db
 from app.events import bp, services
 
@@ -10,37 +10,65 @@ def index():
     return render_template("events/index.html")
 
 
+def _forbidden_unless_approved_organizer():
+    """BR-1.5: yalnızca rol yetmez, yönetici onayı da gerekir. Yetkisizse 403 döner."""
+    if not services.is_approved_organizer(g.user_id, get_db()):
+        return jsonify(
+            {"error": "Etkinlik oluşturmak için yönetici onaylı organizatör olmalısınız."}
+        ), 403
+    return None
+
+
 @bp.route("/create", methods=["GET", "POST"])
+@role_required("organizer")
 def create():
+    """Taslak etkinlik formu (TG-119) ve kaydı (TG-118, TG-121). BR-1.5, BR-2.2, BR-2.3."""
+    denied = _forbidden_unless_approved_organizer()
+    if denied:
+        return denied
+
     if request.method == "POST":
-        # TG-21 ve TG-119'dan gelen tüm form verilerini alıyoruz (venue_id entegrasyonu)
-        title = request.form.get("title", "")
-        category = request.form.get("category", "")
-        venue_id = request.form.get("venue_id", "")
-        start_time = request.form.get("start_time", "")
-        end_time = request.form.get("end_time", "")
-        capacity = request.form.get("capacity", "")
-        price = request.form.get("price", "")
+        try:
+            # organizer_id istekten değil oturumdan alınır (g.user_id).
+            is_valid, event, messages = services.create_draft_event(
+                get_db(),
+                g.user_id,
+                request.form.get("title", ""),
+                request.form.get("category", ""),
+                "",
+                request.form.get("start_time", ""),
+                request.form.get("end_time", ""),
+                request.form.get("capacity", ""),
+                request.form.get("price", ""),
+                venue_id=request.form.get("venue_id", ""),
+            )
+        except services.EventPermissionError as exc:
+            return jsonify({"error": str(exc)}), 403
 
-        # TG-22 / TG-118 doğrulama servisine verileri gönderiyoruz (venue_id desteği)
-        is_valid, messages = services.validate_event_creation(
-            title, category, venue_id, start_time, end_time, capacity, price
-        )
-
-        # Doğrulama sonuçlarını (başarılı/hata) flash mesajı olarak basıyoruz
-        for message in messages:
-            flash_category = "success" if is_valid else "error"
-            flash(message, flash_category)
-
-        # Başarılıysa ana sayfaya, hatalıysa tekrar form sayfasına yönlendiriyoruz
         if is_valid:
+            flash(f"Taslak etkinlik kaydedildi. (Etkinlik No: {event['id']})", "success")
             return redirect(url_for("events.index"))
-        else:
-            return redirect(url_for("events.create"))
 
-    # #119 Görev Kriteri: Sprint 2 salon verilerini form sayfasına dinamik olarak gönderiyoruz
-    venues_list = services.get_all_venues()
-    return render_template("events/create.html", venues=venues_list)
+        for message in messages:
+            flash(message, "error")
+        return redirect(url_for("events.create"))
+
+    return render_template("events/create.html", venues=services.get_all_venues())
+
+
+@bp.route("/<int:event_id>", methods=["GET"])
+@login_required
+def event_detail(event_id):
+    """Kaydedilmiş etkinliği JSON döndürür; taslaklar yalnızca sahibine ve admine açıktır."""
+    event = services.get_event(get_db(), event_id)
+    if event is None:
+        return jsonify({"error": "Etkinlik bulunamadı."}), 404
+    if event["status"] != "published" and not (
+        g.user_role == "admin" or event["organizer_id"] == g.user_id
+    ):
+        # Taslağın varlığını sızdırmamak için 404 döndürülür.
+        return jsonify({"error": "Etkinlik bulunamadı."}), 404
+    return jsonify(event)
 
 
 @bp.route("/venues", methods=["GET"])
