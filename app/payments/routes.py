@@ -1,4 +1,5 @@
 """Koltuk kilitleme ve ödeme uç noktaları."""
+from flask import jsonify, render_template, request
 
 import sqlite3
 
@@ -140,3 +141,4 @@ def handle_database_error(error):
 def payment_page():
     """Ödeme sayfası (arayüz)."""
     return render_template("payments/index.html")
+    
