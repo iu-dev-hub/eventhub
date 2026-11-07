@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "payment_id": 2,
+    "event_id": 2,
+    "user_id": 2,
+    "idempotency_key": "pay_abc123xyz",
+    "ticket_code": "TICKET001",
+    "status": "confirmed",
+    "created_at": "2024-05-18T09:15:00Z"
+  },
+  {
+    "id": 2,
+    "payment_id": 3,
+    "event_id": 3,
+    "user_id": 4,
+    "idempotency_key": "pay_def456uvw",
+    "ticket_code": "TICKET002",
+    "status": "confirmed",
+    "created_at": "2024-05-20T16:45:00Z"
+  },
+  {
+    "id": 3,
+    "payment_id": 4,
+    "event_id": 1,
+    "user_id": 3,
+    "idempotency_key": "pay_ghi789rst",
+    "ticket_code": null,
+    "status": "cancelled",
+    "created_at": "2024-05-22T11:20:00Z"
+  }
+]
