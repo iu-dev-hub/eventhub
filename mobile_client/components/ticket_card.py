@@ -43,7 +43,7 @@ class TicketCard(ft.Container):
                                 spacing=6,
                                 controls=[
                                     ft.Icon(
-                                        ft.icons.CONFIRMATION_NUMBER_OUTLINED,
+                                        ft.Icons.CONFIRMATION_NUMBER_OUTLINED,
                                         size=15,
                                         color=theme.colors.primary,
                                     ),
@@ -63,7 +63,7 @@ class TicketCard(ft.Container):
                                     color=status_color,
                                 ),
                                 bgcolor=theme.colors.surface,
-                                padding=ft.padding.symmetric(horizontal=8, vertical=3),
+                                padding=ft.Padding.symmetric(horizontal=8, vertical=3),
                                 border_radius=4,
                             ),
                         ],
@@ -85,7 +85,7 @@ class TicketCard(ft.Container):
                                 color=theme.colors.text_secondary,
                             ),
                             ft.Icon(
-                                ft.icons.QR_CODE_2,
+                                ft.Icons.QR_CODE_2,
                                 size=20,
                                 color=theme.colors.text_secondary
                                 if is_used
@@ -99,7 +99,7 @@ class TicketCard(ft.Container):
             padding=14,
             border_radius=8,
             bgcolor=theme.colors.background,
-            border=ft.border.all(1, theme.colors.border),
+            border=ft.Border.all(1, theme.colors.border),
             opacity=0.75 if is_used else 1.0,
             on_click=self._handle_click if is_clickable else None,
             ink=is_clickable,

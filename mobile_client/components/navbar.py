@@ -18,32 +18,31 @@ class BottomNavBar(ft.NavigationBar):
     ):
         self.nav_callback = on_change
         self.app_theme = theme
-        self.selected_index = selected_index
 
         super().__init__(
             selected_index=selected_index,
             bgcolor=theme.colors.background,
             destinations=[
-                ft.NavigationDestination(
-                    icon=ft.icons.EXPLORE_OUTLINED,
-                    selected_icon=ft.icons.EXPLORE,
+                ft.NavigationBarDestination(
+                    icon=ft.Icons.EXPLORE_OUTLINED,
+                    selected_icon=ft.Icons.EXPLORE,
                     label="Etkinlikler",
                 ),
-                ft.NavigationDestination(
-                    icon=ft.icons.CONFIRMATION_NUMBER_OUTLINED,
-                    selected_icon=ft.icons.CONFIRMATION_NUMBER,
+                ft.NavigationBarDestination(
+                    icon=ft.Icons.CONFIRMATION_NUMBER_OUTLINED,
+                    selected_icon=ft.Icons.CONFIRMATION_NUMBER,
                     label="Biletlerim",
                 ),
-                ft.NavigationDestination(
-                    icon=ft.icons.PERSON_OUTLINED,
-                    selected_icon=ft.icons.PERSON,
+                ft.NavigationBarDestination(
+                    icon=ft.Icons.PERSON_OUTLINED,
+                    selected_icon=ft.Icons.PERSON,
                     label="Profil",
                 ),
             ],
             on_change=self._handle_change,
         )
 
-    def _handle_change(self, e: ft.NavigationBarChangeEvent):
+    def _handle_change(self, e: ft.ControlEvent):
         self.selected_index = e.control.selected_index
         if self.nav_callback:
             self.nav_callback(e.control.selected_index)

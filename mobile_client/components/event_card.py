@@ -53,7 +53,7 @@ class EventCard(ft.Container):
                                     color=theme.colors.primary,
                                 ),
                                 bgcolor=theme.colors.surface,
-                                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                                padding=ft.Padding.symmetric(horizontal=8, vertical=4),
                                 border_radius=4,
                             ),
                             ft.Container(
@@ -63,7 +63,7 @@ class EventCard(ft.Container):
                                     weight=ft.FontWeight.W_500,
                                     color=status_color,
                                 ),
-                                padding=ft.padding.symmetric(horizontal=6, vertical=2),
+                                padding=ft.Padding.symmetric(horizontal=6, vertical=2),
                             ),
                         ],
                     ),
@@ -82,7 +82,7 @@ class EventCard(ft.Container):
                                 spacing=4,
                                 controls=[
                                     ft.Icon(
-                                        ft.icons.CALENDAR_TODAY,
+                                        ft.Icons.CALENDAR_TODAY,
                                         size=13,
                                         color=theme.colors.text_secondary,
                                     ),
@@ -107,7 +107,7 @@ class EventCard(ft.Container):
             padding=14,
             border_radius=8,
             bgcolor=theme.colors.background,
-            border=ft.border.all(1, theme.colors.border),
+            border=ft.Border.all(1, theme.colors.border),
             on_click=self._handle_click if on_click else None,
             ink=True if on_click else False,
         )
