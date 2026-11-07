@@ -1,4 +1,4 @@
-# İhtiyaç Dokümanı (Business Rules) — Sürüm 1.0
+# İhtiyaç Dokümanı (Business Rules) — Sürüm 1.1
 
 **EventHub**
 Hazırlayan: EventHub Teknoloji, Ürün Ekibi (müşteri)
@@ -21,6 +21,9 @@ Hazırlayan: EventHub Teknoloji, Ürün Ekibi (müşteri)
 - **BR-1.5** Organizatör olarak kaydolan kullanıcılar, bir yönetici hesaplarını
   onaylayana kadar etkinlik oluşturamaz.
 - **BR-1.6** Öğrenci olan katılımcılar öğrenci indiriminden (BR-4.2) yararlanabilir.
+- **BR-1.7** Katılımcılar ve organizatörler kendi hesap, profil ve rol detaylarını profil detay sayfasından görüntüleyebilmeli ve güncelleyebilmelidir.
+- **BR-1.8** Hesap modülündeki tüm form ve işlem sayfalarında (giriş, kayıt, şifre değiştirme, ayarlar) kullanıcıyı önceki sayfaya veya panele yönlendiren geri dönüş/iptal butonları bulunmalıdır.
+- **BR-1.9** Öğrenci indiriminden (BR-1.6) yararlanacak katılımcıların öğrenci statüsü kayıt veya profil sayfasında doğrulanabilir olmalıdır.
 
 ## BR-2. Etkinlikler ve salonlar (team-events)
 
@@ -95,3 +98,4 @@ salonlar, harita entegrasyonu. Bildirimler yalnızca platform içinde gösterili
 | Sürüm | Tarih | Değişiklik | Kaynak |
 |---|---|---|---|
 | 1.0 | | İlk sürüm | Müşteri açılış toplantısı |
+| 1.1 | 2026-11-06 | BR-1.7, BR-1.8, BR-1.9 eklendi: Detay sayfası, sayfa navigasyonu ve öğrenci doğrulama | team-accounts (Müşteri görüşmesi) |
