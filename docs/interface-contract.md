@@ -13,6 +13,7 @@ SQLite veritabanını (`get_db()`) kullanır. İş kuralı kodları için `docs/
 | 2. Events | team-events | Bu belge (TG-44) |
 | 3. Tickets | team-tickets | Ekip dolduracak |
 | 4. Payments | team-payments | Ekip dolduracak |
+| 5. Mobile (API) | team-mobile | GET /api/events taslak sözleşmesi (TG-67) |
 
 ---
 
@@ -187,3 +188,52 @@ fazla doğrulama hatası varsa ek olarak `"errors": ["..."]` listesi döner.
 ## 4. Payments
 
 > Sahibi team-payments. Bu bölümü Payments ekibi doldurur.
+
+---
+
+## 5. Mobile API (team-mobile)
+
+> Sahibi team-mobile. Flet mobil istemcisinin (`mobile_client/`) konuştuğu JSON uç noktalarıdır.
+
+### 5.1 Etkinlik Listeleme (`GET /api/events`) — TG-67 (Spike Ölçütü 2)
+
+Flet istemcisinin etkinlik vitrinini doldurmak için çağırdığı ilk API uç noktasıdır.
+
+- **Uç Nokta:** `GET /api/events`
+- **Filtre Kuralı:** Yalnızca `published` durumundaki etkinlikleri döndürür.
+- **Boş Liste:** Etkinlik yoksa 404 değil, 200 durum koduyla boş liste (`{"events": []}`) döner.
+- **Cevap Tipi:** `application/json`
+- **Tarihler:** Standart ISO 8601 biçimindedir (`YYYY-MM-DDTHH:MM:SS`).
+- **Fiyat Alanı:** Para tutarları float olarak gönderilmez (yuvarlama ve kayan nokta hatalarını önlemek için metin `"0.00"` veya `"150.00"` biçiminde döner).
+- **Mimari Kuralı:** API iş kuralı yazmaz; veriyi servis katmanından alır ve JSON formatına dönüştürür.
+
+#### Taslak Yanıt Biçimi (200 OK)
+
+```json
+{
+  "events": [
+    {
+      "id": 12,
+      "title": "Yapay Zekâ Semineri",
+      "category": "Seminer",
+      "venue": "Konferans Salonu A",
+      "starts_at": "2026-11-05T14:00:00",
+      "price": "0.00",
+      "status": "published"
+    }
+  ]
+}
+```
+
+#### Alan Tanımları
+
+| Alan | Tür | Zorunlu? | Açıklama |
+|---|---|---|---|
+| `id` | int | Evet | Etkinlik kimliği |
+| `title` | str | Evet | Etkinlik başlığı |
+| `category` | str | Evet | Kategori adı |
+| `venue` | str | Evet | Salon/mekan adı |
+| `starts_at` | str | Evet | Başlangıç zamanı (ISO 8601) |
+| `price` | str | Evet | Fiyat (iki ondalıklı metin, ör. `"150.00"`) |
+| `status` | str | Evet | Yayın durumu (`published`) |
+
