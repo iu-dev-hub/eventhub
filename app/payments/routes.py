@@ -1,8 +1,9 @@
 """Koltuk kilitleme ve ödeme uç noktaları."""
+from flask import jsonify, render_template, request
 
 import sqlite3
 
-from flask import current_app, jsonify, render_template, request
+from flask import current_app, jsonify, render_template, request, session
 
 from app.payments import bp, services
 
@@ -55,6 +56,8 @@ def pay():
     user_id = data.get("userId") or data.get("user_id")
     idempotency_key = data.get("idempotencyKey") or data.get("idempotency_key")
 
+    client_id = request.remote_addr or "client"
+
     # Görev gereği başarısız ödeme de 200 döner, sonuç success alanındadır
     result = services.process_payment(
         card_number,
@@ -63,6 +66,7 @@ def pay():
         event_id=event_id,
         user_id=user_id,
         idempotency_key=idempotency_key,
+        client_id=client_id,
     )
     return jsonify(result), 200
 
@@ -115,6 +119,14 @@ def unlock_seats():
     }), 200
 
 
+@bp.get("/api/tickets/my-tickets")
+def my_tickets_api():
+    """Kullanıcının biletlerini JSON olarak döner."""
+    user_id = session.get("user_id") or request.args.get("user_id", type=int) or 1
+    tickets = services.get_user_tickets(user_id)
+    return jsonify({"success": True, "tickets": tickets}), 200
+
+
 @bp.errorhandler(sqlite3.Error)
 def handle_database_error(error):
     # Ayrıntı kullanıcıya gösterilmez (güvenlik), sunucu loguna yazılır
@@ -129,3 +141,4 @@ def handle_database_error(error):
 def payment_page():
     """Ödeme sayfası (arayüz)."""
     return render_template("payments/index.html")
+    
