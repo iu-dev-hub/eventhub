@@ -1,0 +1,44 @@
+[
+  {
+    "id": 1,
+    "event_id": 1,
+    "seat_code": "A1",
+    "status": "sold",
+    "locked_until": null
+  },
+  {
+    "id": 2,
+    "event_id": 1,
+    "seat_code": "A2",
+    "status": "available",
+    "locked_until": null
+  },
+  {
+    "id": 3,
+    "event_id": 1,
+    "seat_code": "B1",
+    "status": "sold",
+    "locked_until": null
+  },
+  {
+    "id": 4,
+    "event_id": 2,
+    "seat_code": "A1",
+    "status": "available",
+    "locked_until": null
+  },
+  {
+    "id": 5,
+    "event_id": 2,
+    "seat_code": "B3",
+    "status": "locked",
+    "locked_until": "2024-05-20T10:30:00Z"
+  },
+  {
+    "id": 6,
+    "event_id": 3,
+    "seat_code": "C5",
+    "status": "available",
+    "locked_until": null
+  }
+]

@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "reservation_id": 1,
+    "event_id": 2,
+    "seat_code": "B3",
+    "created_at": "2024-05-18T09:15:00Z"
+  },
+  {
+    "id": 2,
+    "reservation_id": 2,
+    "event_id": 3,
+    "seat_code": "C5",
+    "created_at": "2024-05-20T16:45:00Z"
+  }
+]
