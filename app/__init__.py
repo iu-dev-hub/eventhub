@@ -34,6 +34,11 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     app.register_blueprint(accounts_bp)
 
+    # API modülü (mobil istemci için JSON uç noktaları - SM Onaylı: TG-67)
+    from app.api import bp as api_bp
+
+    app.register_blueprint(api_bp)
+
     from app.events import bp as events_bp
 
     app.register_blueprint(events_bp)
@@ -56,5 +61,3 @@ def create_app(test_config: dict | None = None) -> Flask:
         return jsonify(status="ok", version=VERSION)
 
     return app
-
-
