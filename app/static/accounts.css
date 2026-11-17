@@ -22,6 +22,25 @@
   --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
 }
 
+/* Accounts Home */
+.account-home-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  max-width: 42rem;
+  margin-top: 1.25rem;
+}
+
+.account-home-actions .btn {
+  min-height: 44px;
+  text-align: center;
+}
+
+.account-home-actions .btn:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 3px;
+}
+
 /* Auth Pages (Login & Register Dual-Pane) */
 .auth-container {
   display: grid;
@@ -846,6 +865,10 @@
 
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
+  .account-home-actions {
+    grid-template-columns: 1fr;
+  }
+
   .auth-container {
     grid-template-columns: 1fr;
     margin: 1rem auto;

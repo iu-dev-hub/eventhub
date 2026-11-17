@@ -3,6 +3,8 @@
 Tests full request-response lifecycle with Flask test client and isolated SQLite database.
 """
 
+import re
+
 import pytest
 
 from app.accounts.services import (
@@ -29,6 +31,51 @@ def test_accounts_index_html(client):
     html = response.get_data(as_text=True)
     assert "Hesap Yönetimi" in html
     assert "EventHub" in html
+
+
+@pytest.mark.parametrize(
+    ("signed_in", "expected_links"),
+    [
+        (
+            False,
+            [
+                ("/accounts/login", "Giriş Yap"),
+                ("/accounts/register", "Kayıt Ol"),
+                ("/accounts/forgot-password", "Şifremi Unuttum"),
+            ],
+        ),
+        (
+            True,
+            [
+                ("/accounts/profile", "Profilim"),
+                ("/accounts/settings", "Ayarlar"),
+                ("/accounts/change-password", "Şifre Değiştir"),
+            ],
+        ),
+    ],
+)
+def test_accounts_index_shows_navigation_for_session(client, signed_in, expected_links):
+    """TG-166: Hesap ana sayfası oturuma uygun form bağlantılarını göstermelidir."""
+    if signed_in:
+        credentials = {"email": "account-home@example.com", "password": "Password123"}
+        registration = client.post(
+            "/accounts/register", json={**credentials, "terms_accepted": True}
+        )
+        assert registration.status_code == 201
+        assert client.post("/accounts/login", json=credentials).status_code == 200
+
+    headers = {"Accept": "text/html"}
+    response = client.get("/accounts/", headers=headers)
+    assert response.status_code == 200
+    links = re.findall(
+        r'<a\b[^>]*\bhref="(/accounts/[^"]+)"[^>]*>\s*([^<]+?)\s*</a>',
+        response.get_data(as_text=True),
+    )
+    assert links == expected_links
+    for path, _ in links:
+        destination = client.get(path, headers=headers)
+        assert destination.status_code == 200
+        assert destination.mimetype == "text/html"
 
 
 def test_register_user_success(client, app):
