@@ -17,9 +17,10 @@ SCHEMA_FILE = Path(__file__).with_name("schema.sql")
 def get_db() -> sqlite3.Connection:
     """İstek boyunca kullanılacak veritabanı bağlantısını döndürür."""
     if "db" not in g:
-        g.db = sqlite3.connect(current_app.config["DATABASE"])
+        g.db = sqlite3.connect(current_app.config["DATABASE"], timeout=10.0)
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA foreign_keys = ON")
+        g.db.execute("PRAGMA busy_timeout = 10000")
     return g.db
 
 
