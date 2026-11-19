@@ -154,14 +154,25 @@ def _parse_form_datetime(value):
 
 
 def create_draft_event(
-    db, organizer_id, title, category, venue, start_time, end_time, capacity, price
+    db,
+    organizer_id,
+    title,
+    category,
+    venue,
+    start_time,
+    end_time,
+    capacity,
+    price,
+    *,
+    venue_id=None,
 ):
     """Etkinliği `draft` durumunda kaydeder (TG-118, PB-08; BR-1.5, BR-2.2, BR-2.3).
 
     - Yetki: `organizer_id` Accounts üzerinden doğrulanır; kullanıcı yönetici onaylı
       organizatör değilse `EventPermissionError` fırlatılır ve kayıt yazılmaz.
-    - `venue` salon adıdır; salon `venues` tablosundan bulunur ve etkinlik kapasitesi
-      gerçek salon kapasitesiyle karşılaştırılır.
+    - Salon: formdan gelen `venue_id` (TG-119/TG-121) verilirse salon `venues.id` ile bulunur;
+      verilmezse `venue` salon adıyla aranır. Etkinlik kapasitesi gerçek salon kapasitesiyle
+      karşılaştırılır.
     - `organizer_id` istek verisinden değil, oturumdan (g.user_id) verilmelidir.
     - Durum her zaman `draft`'tır. Veritabanı hatalarında işlem geri alınır.
 
@@ -173,12 +184,13 @@ def create_draft_event(
     title = str(title or "").strip()
     category = str(category or "").strip()
     venue = str(venue or "").strip()
+    venue_id_s = str(venue_id if venue_id is not None else "").strip()
     start_time = str(start_time or "").strip()
     end_time = str(end_time or "").strip()
     capacity_s = str(capacity if capacity is not None else "").strip()
     price_s = str(price if price is not None else "").strip()
 
-    if not all([title, category, venue, start_time, end_time, capacity_s, price_s]):
+    if not all([title, category, venue or venue_id_s, start_time, end_time, capacity_s, price_s]):
         return False, None, ["Lütfen tüm zorunlu alanları doldurun."]
 
     errors = []
@@ -211,9 +223,16 @@ def create_draft_event(
         errors.append("Bilet fiyatı negatif olamaz.")
 
     try:
-        venue_row = db.execute(
-            "SELECT id, capacity FROM venues WHERE name = ?", (venue,)
-        ).fetchone()
+        if venue_id_s:
+            venue_row = None
+            if venue_id_s.isascii() and venue_id_s.isdigit():
+                venue_row = db.execute(
+                    "SELECT id, capacity FROM venues WHERE id = ?", (int(venue_id_s),)
+                ).fetchone()
+        else:
+            venue_row = db.execute(
+                "SELECT id, capacity FROM venues WHERE name = ?", (venue,)
+            ).fetchone()
         if venue_row is None:
             errors.append("Seçilen salon bulunamadı.")
         elif cap_val > venue_row["capacity"]:
