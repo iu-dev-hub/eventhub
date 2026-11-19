@@ -683,7 +683,48 @@
   border-bottom: 1px solid var(--border-color);
 }
 
+.profile-identity {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.profile-identity h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.4rem;
+}
+
+.profile-identity p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.profile-student-status {
+  margin: 0.75rem 0 0;
+  font-size: 0.9rem;
+}
+
+.profile-student-status dt {
+  font-weight: 600;
+}
+
+.profile-student-status dd {
+  margin: 0;
+}
+
+.student-badge {
+  display: inline-block;
+  margin: 0.25rem 0;
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  background: var(--accent-light);
+  color: #1d4ed8;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 .avatar-circle {
+  flex-shrink: 0;
   width: 80px;
   height: 80px;
   border-radius: 50%;
@@ -902,6 +943,17 @@
 
   .dashboard-layout {
     grid-template-columns: 1fr;
+  }
+
+  .profile-avatar-section {
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .avatar-circle {
+    width: 48px;
+    height: 48px;
+    font-size: 1.25rem;
   }
 
   .sidebar {

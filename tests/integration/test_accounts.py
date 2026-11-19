@@ -822,6 +822,55 @@ def test_profile_and_edit_flow(client):
     assert res_bad.status_code == 400
 
 
+@pytest.mark.parametrize(
+    ("role", "role_label", "is_student", "student_number"),
+    [
+        ("participant", "Katılımcı", True, "120501099"),
+        ("participant", "Katılımcı", True, None),
+        ("organizer", "Organizatör", False, None),
+        ("admin", "Yönetici", False, None),
+    ],
+)
+def test_profile_displays_account_details(client, role, role_label, is_student, student_number):
+    """TG-167: Profil, hesap bilgilerini ve kayıtlı öğrenci beyanını gösterir."""
+    credentials = {"email": "deniz.kaya@example.com", "password": "Password123"}
+    registration = client.post(
+        "/accounts/register",
+        json={
+            **credentials,
+            "terms_accepted": True,
+            "first_name": "Deniz",
+            "last_name": "Kaya",
+            "role": role,
+            "is_student": is_student,
+            "student_number": student_number,
+        },
+    )
+    assert registration.status_code == 201
+    assert client.post("/accounts/login", json=credentials).status_code == 200
+
+    response = client.get("/accounts/profile", headers={"Accept": "text/html"})
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "<h1>Deniz Kaya</h1>" in html
+    assert f"<p>{credentials['email']}</p>" in html
+    assert f'value="{role_label}"' in html
+    assert "<dt>Öğrenci statüsü</dt>" in html
+    assert ('class="student-badge">Öğrenci Hesabı<' in html) == is_student
+    assert ("Kayıt beyanı" in html) == is_student
+    assert ("Öğrenci beyanı yok" in html) == (not is_student)
+    assert ("Öğrenci no." in html) == (student_number is not None)
+    if student_number is not None:
+        assert f"Öğrenci no. {student_number}" in html
+
+
+def test_profile_requires_login_for_html_requests(client):
+    """TG-167: Misafirin profil isteği mevcut 401 yanıtını alır."""
+    response = client.get("/accounts/profile", headers={"Accept": "text/html"})
+    assert response.status_code == 401
+    assert response.get_json() == {"error": "Oturum açılmamış."}
+
+
 def test_settings_and_change_password_endpoint(client):
     """TG-74, TG-75: Ayarlar sayfası ve şifre değiştirme uç noktası."""
     client.post(
