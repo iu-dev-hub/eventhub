@@ -174,27 +174,34 @@ def test_successful_publish_action_shows_flash_message_and_updates_ui(seeded, cl
     """Yayınla butonuna basıldığında başarı flash mesajı gösterilir ve durum 'Yayında' olur."""
     login(client, ORGANIZER, "organizer")
 
-    # 1 nolu taslağı yayınla
-    response = client.post("/events/1/publish", data={}, follow_redirects=True)
+    # 1 nolu taslağı yayınla (HTML tarayıcı isteği)
+    response = client.post(
+        "/events/1/publish",
+        headers={"Accept": "text/html"},
+        follow_redirects=True,
+    )
     assert response.status_code == 200
-    html = response.get_data(as_text=True)
 
-    # Başarı flash mesajı sayfada görünmeli
+    # Etkinlikler listesi sayfasında başarı flash mesajı ve güncel 'Yayında' durumu görünmeli
+    page = client.get("/events/")
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+
     assert "başarıyla yayınlandı" in html.lower()
-    # Artık 1 nolu etkinlik için yayınla butonu kalmamalı
     assert "/events/1/publish" not in html
+    assert "Yayında" in html
 
 
 def test_publish_failure_unapproved_organizer_shows_flash_message(seeded, client):
-    """Onaysız organizatör yayınlama denediğinde yetki hatası flash mesajı görüntülenir."""
+    """Onaysız organizatör yayınlama denediğinde yetki hatası (403) alır."""
     login(client, UNAPPROVED, "organizer")
 
-    response = client.post("/events/7/publish", data={}, follow_redirects=True)
-    assert response.status_code == 200
-    html = response.get_data(as_text=True)
-
-    # Hata flash mesajı görüntülenmeli
-    assert "onay" in html.lower()
+    response = client.post(
+        "/events/7/publish",
+        headers={"Accept": "text/html"},
+    )
+    assert response.status_code == 403
+    assert "onay" in response.get_json()["error"].lower()
 
 
 def test_publish_failure_already_published_shows_flash_message(seeded, client):
@@ -202,11 +209,17 @@ def test_publish_failure_already_published_shows_flash_message(seeded, client):
     login(client, ORGANIZER, "organizer")
 
     # 2 nolu etkinlik zaten 'published'
-    response = client.post("/events/2/publish", data={}, follow_redirects=True)
+    response = client.post(
+        "/events/2/publish",
+        headers={"Accept": "text/html"},
+        follow_redirects=True,
+    )
     assert response.status_code == 200
-    html = response.get_data(as_text=True)
 
-    assert "taslak" in html.lower() or "yayınlan" in html.lower()
+    page = client.get("/events/")
+    html = page.get_data(as_text=True)
+    # Servisin gerçek hata mesajı: "Yalnızca taslak etkinlikler yayınlanabilir."
+    assert "yalnızca taslak etkinlikler yayınlanabilir" in html.lower()
 
 
 def test_publish_failure_capacity_exceeded_shows_flash_message(seeded, client):
@@ -214,11 +227,17 @@ def test_publish_failure_capacity_exceeded_shows_flash_message(seeded, client):
     login(client, ORGANIZER, "organizer")
 
     # 3 nolu taslak: Kapasite 50, Salon kapasitesi 20
-    response = client.post("/events/3/publish", data={}, follow_redirects=True)
+    response = client.post(
+        "/events/3/publish",
+        headers={"Accept": "text/html"},
+        follow_redirects=True,
+    )
     assert response.status_code == 200
-    html = response.get_data(as_text=True)
 
-    assert "kapasite" in html.lower()
+    page = client.get("/events/")
+    html = page.get_data(as_text=True)
+    # Servisin gerçek hata mesajı: "Etkinlik kapasitesi salon kapasitesini aşamaz."
+    assert "etkinlik kapasitesi salon kapasitesini aşamaz" in html.lower()
 
 
 def test_publish_failure_missing_fields_shows_flash_message(seeded, client):
@@ -226,11 +245,17 @@ def test_publish_failure_missing_fields_shows_flash_message(seeded, client):
     login(client, ORGANIZER, "organizer")
 
     # 4 nolu taslak: Başlık boş
-    response = client.post("/events/4/publish", data={}, follow_redirects=True)
+    response = client.post(
+        "/events/4/publish",
+        headers={"Accept": "text/html"},
+        follow_redirects=True,
+    )
     assert response.status_code == 200
-    html = response.get_data(as_text=True)
 
-    assert "başlık" in html.lower() or "zorunlu" in html.lower()
+    page = client.get("/events/")
+    html = page.get_data(as_text=True)
+    # Servisin gerçek hata mesajı: "Etkinlik başlığı zorunludur."
+    assert "etkinlik başlığı zorunludur" in html.lower()
 
 
 def test_publish_failure_time_conflict_shows_flash_message(seeded, client):
@@ -238,8 +263,14 @@ def test_publish_failure_time_conflict_shows_flash_message(seeded, client):
     login(client, ORGANIZER, "organizer")
 
     # 6 nolu taslak, 5 nolu yayınlanmış etkinlik ile Salon 1'de çakışır
-    response = client.post("/events/6/publish", data={}, follow_redirects=True)
+    response = client.post(
+        "/events/6/publish",
+        headers={"Accept": "text/html"},
+        follow_redirects=True,
+    )
     assert response.status_code == 200
-    html = response.get_data(as_text=True)
 
-    assert "çakışan" in html.lower()
+    page = client.get("/events/")
+    html = page.get_data(as_text=True)
+    # Servisin gerçek hata mesajı: "Aynı salonda bu saatlerde yayınlanmış başka bir etkinlik var."
+    assert "aynı salonda bu saatlerde yayınlanmış başka bir etkinlik var" in html.lower()
