@@ -207,15 +207,22 @@ def test_non_organizer_roles_cannot_publish_even_if_approved_flag_is_set(db, rol
     assert get_event(db, event_id)["status"] == "draft"
 
 
-@pytest.mark.parametrize("valid_capacity", [1, 99, 100])
-def test_publish_event_capacity_boundary_valid_values(db, valid_capacity):
+@pytest.mark.parametrize(
+    "valid_capacity,start_time,end_time",
+    [
+        (1, "2026-12-02T10:00", "2026-12-02T12:00"),
+        (99, "2026-12-03T10:00", "2026-12-03T12:00"),
+        (100, "2026-12-04T10:00", "2026-12-04T12:00"),
+    ],
+)
+def test_publish_event_capacity_boundary_valid_values(db, valid_capacity, start_time, end_time):
     """TC-176-U06 · BR-2.3: Salon kapasitesi (100) sınır değerlerinde (1, 99, 100) yayınlanır."""
     event_id = _insert_event(
         db,
         organizer_id=1,
         capacity=valid_capacity,
-        start_time=f"2026-12-0{valid_capacity % 5 + 2}T10:00",
-        end_time=f"2026-12-0{valid_capacity % 5 + 2}T12:00",
+        start_time=start_time,
+        end_time=end_time,
     )
 
     ok, event, errors = publish_event(db, event_id, organizer_id=1)
