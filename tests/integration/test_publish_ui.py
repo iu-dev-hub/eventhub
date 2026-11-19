@@ -16,6 +16,7 @@ ORGANIZER = 20
 OTHER_ORGANIZER = 21
 UNAPPROVED = 22
 PARTICIPANT = 23
+ADMIN = 24
 
 
 def _setup_db(app):
@@ -30,6 +31,7 @@ def _setup_db(app):
             (OTHER_ORGANIZER, "org21@example.com", "organizer", 1),
             (UNAPPROVED, "unapp22@example.com", "organizer", 0),
             (PARTICIPANT, "part23@example.com", "participant", 0),
+            (ADMIN, "admin24@example.com", "admin", 1),
         ]
         for uid, email, role, approved in users:
             db.execute(
@@ -108,6 +110,14 @@ def _setup_db(app):
             (UNAPPROVED,),
         )
 
+        # 8: OTHER_ORGANIZER taslak etkinlik
+        db.execute(
+            f"INSERT INTO events ({cols}) VALUES "
+            "(8, 'Gizli Diğer Taslak', 'Eğitim', 2, '2026-12-07T10:00', "
+            "'2026-12-07T12:00', 15, 0, 'draft', ?)",
+            (OTHER_ORGANIZER,),
+        )
+
         db.commit()
 
 
@@ -181,12 +191,9 @@ def test_successful_publish_action_shows_flash_message_and_updates_ui(seeded, cl
         follow_redirects=True,
     )
     assert response.status_code == 200
+    html = response.get_data(as_text=True)
 
-    # Etkinlikler listesi sayfasında başarı flash mesajı ve güncel 'Yayında' durumu görünmeli
-    page = client.get("/events/")
-    assert page.status_code == 200
-    html = page.get_data(as_text=True)
-
+    # Başarı flash mesajı ve güncel 'Yayında' durumu yönlenilen /events/ sayfasında görünmeli
     assert "başarıyla yayınlandı" in html.lower()
     assert "/events/1/publish" not in html
     assert "Yayında" in html
@@ -336,9 +343,9 @@ def test_full_lifecycle_create_draft_then_publish_updates_visibility_for_all_rol
         follow_redirects=True,
     )
     assert pub_resp.status_code == 200
+    org_list_after = pub_resp.get_data(as_text=True)
 
     # Organizatör listesinde başarı mesajı ve 'Yayında' durumu görünür, publish butonu kalkar
-    org_list_after = client.get("/events/").get_data(as_text=True)
     assert f"Etkinlik başarıyla yayınlandı. (Etkinlik No: {event_id})" in org_list_after
     assert f"/events/{event_id}/publish" not in org_list_after
 
@@ -353,7 +360,7 @@ def test_full_lifecycle_create_draft_then_publish_updates_visibility_for_all_rol
 
 
 def test_html_publish_redirect_target_is_documented_for_qa_finding(seeded, client):
-    """TC-176-I05: HTML yayınlama isteğinin yönlendirme davranışını ve flash mesajını doğrular."""
+    """TC-176-I05: HTML yayınlama isteğinin events.index yönlendirmesini ve flash'ı doğrular."""
     login(client, ORGANIZER, "organizer")
     response = client.post(
         "/events/1/publish",
@@ -361,8 +368,60 @@ def test_html_publish_redirect_target_is_documented_for_qa_finding(seeded, clien
         follow_redirects=False,
     )
     assert response.status_code == 302
-    assert response.headers["Location"].endswith(("/events/1", "/events/"))
+    assert response.headers["Location"] == "/events/"
 
     with client.session_transaction() as sess:
         flashes = sess.get("_flashes", [])
         assert ("success", "Etkinlik başarıyla yayınlandı. (Etkinlik No: 1)") in flashes
+
+
+def test_html_publish_redirects_to_events_index_and_shows_flash_immediately(seeded, client):
+    """HTML yayınlama sonrası doğrudan /events/ sayfasına yönlenir ve flash mesajı görünür."""
+    login(client, ORGANIZER, "organizer")
+    response = client.post(
+        "/events/1/publish",
+        headers={"Accept": "text/html"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+
+    # Başarı flash mesajı anında yönlenilen HTML yanıtında görünmeli
+    assert "etkinlik başarıyla yayınlandı" in html.lower()
+    # 1 nolu etkinlik için yayınla butonu kaldırılmış olmalı
+    assert "/events/1/publish" not in html
+    # Durum Yayında olmalı
+    assert "Yayında" in html
+
+
+def test_organizer_sees_other_organizers_published_events_but_not_drafts(seeded, client):
+    """Organizatör diğer organizatörün yayınlanmış etkinliğini görür, taslağını göremez."""
+    login(client, ORGANIZER, "organizer")
+    response = client.get("/events/")
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+
+    # Kendi taslak etkinliğini görür (1 nolu Caz Festivali)
+    assert "Caz Festivali" in html
+    # Diğer organizatörün yayınlanmış etkinliğini görür (5 nolu Mevcut Seminer)
+    assert "Mevcut Seminer" in html
+    # Diğer organizatörün taslağını göremez (8 nolu Gizli Diğer Taslak)
+    assert "Gizli Diğer Taslak" not in html
+
+
+def test_admin_sees_draft_events_without_publish_button(seeded, client):
+    """Admin rolü /events/ sayfasında taslakları görür fakat 'Yayınla' butonunu görmez."""
+    login(client, ADMIN, "admin")
+    response = client.get("/events/")
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+
+    # Admin tüm taslakları görür
+    assert "Caz Festivali" in html
+    assert "Gizli Diğer Taslak" in html
+    assert "Taslak" in html
+
+    # Ancak admin rolü için 'Yayınla' formu/butonu render edilmemelidir
+    assert "/events/1/publish" not in html
+    assert "/events/8/publish" not in html
+    assert "btn-publish" not in html

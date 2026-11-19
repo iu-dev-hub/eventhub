@@ -49,7 +49,7 @@
                 </div>
 
                 <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #F1F5F9; display: flex; justify-content: flex-end; align-items: center;">
-                    {% if event.status == 'draft' %}
+                    {% if event.status == 'draft' and user_role == 'organizer' and event.organizer_id == current_user_id %}
                     <form action="{{ url_for('events.publish', event_id=event.id) }}" method="post" style="margin: 0;">
                         <button type="submit" class="btn btn-publish" style="background-color: #10B981; color: #FFFFFF; border: none; padding: 8px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;">
                             Yayınla

@@ -20,7 +20,8 @@ def index():
 
     if user_role == "organizer" and user_id:
         rows = db.execute(
-            f"{query} WHERE e.organizer_id = ? ORDER BY e.id DESC", (user_id,)
+            f"{query} WHERE e.organizer_id = ? OR e.status = 'published' ORDER BY e.id DESC",
+            (user_id,),
         ).fetchall()
     elif user_role == "admin":
         rows = db.execute(f"{query} ORDER BY e.id DESC").fetchall()
@@ -28,7 +29,12 @@ def index():
         rows = db.execute(f"{query} WHERE e.status = 'published' ORDER BY e.id DESC").fetchall()
 
     events = [dict(r) for r in rows]
-    return render_template("events/index.html", events=events)
+    return render_template(
+        "events/index.html",
+        events=events,
+        current_user_id=user_id,
+        user_role=user_role,
+    )
 
 
 def _forbidden_unless_approved_organizer(action="oluşturmak"):
@@ -146,7 +152,7 @@ def publish(event_id):
     msg = f"Etkinlik başarıyla yayınlandı. (Etkinlik No: {event['id']})"
     flash(msg, "success")
     if is_html:
-        return redirect(url_for("events.event_detail", event_id=event_id))
+        return redirect(url_for("events.index"))
     return jsonify({"message": msg, "event": event}), 200
 
 
