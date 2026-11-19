@@ -284,6 +284,7 @@ def list_events_by_organizer(db, organizer_id):
     ).fetchall()
     return [dict(r) for r in rows]
 
+
 def publish_event(db, event_id):
     """TG-171: Taslak etkinliği yayınlar, durumu veritabanına kalıcı kaydeder."""
 

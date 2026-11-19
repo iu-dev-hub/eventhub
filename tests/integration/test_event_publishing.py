@@ -1,4 +1,3 @@
-
 """TG-171: Etkinlik yayınlama ve veritabanı kalıcılık testleri."""
 
 import sqlite3
@@ -49,10 +48,15 @@ def event_db(app):
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    title, "Eğitim", venue_id,
+                    title,
+                    "Eğitim",
+                    venue_id,
                     "2026-12-01T10:00",
                     "2026-12-01T12:00",
-                    50, 0, "draft", organizer_id,
+                    50,
+                    0,
+                    "draft",
+                    organizer_id,
                 ),
             )
 
