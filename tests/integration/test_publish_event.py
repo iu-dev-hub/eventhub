@@ -133,18 +133,22 @@ def test_approved_organizer_can_publish_own_draft_json(seeded_db, client):
 
 
 def test_approved_organizer_publish_html_redirect_and_flash(seeded_db, client):
-    """Tarayıcı isteği (Accept: text/html) ile yayınlama yönlendirme ve flash mesajı üretir."""
+    """Tarayıcı isteği (Accept: text/html) ile yayınlama index'e yönlendirir ve flash üretir."""
     login(client, ORGANIZER, "organizer")
     response = client.post(
         "/events/1/publish",
         headers={"Accept": "text/html"},
-        follow_redirects=True,
+        follow_redirects=False,
     )
-    assert response.status_code == 200
+    assert response.status_code == 302
+    assert response.headers["Location"] == "/events/"
 
     with client.session_transaction() as sess:
         flashes = sess.get("_flashes", [])
         assert any("başarıyla yayınlandı" in f[1] for f in flashes)
+
+    page = client.get("/events/")
+    assert "başarıyla yayınlandı" in page.get_data(as_text=True)
 
 
 def test_idor_protection_cannot_publish_other_organizers_draft(seeded_db, client):
@@ -217,19 +221,23 @@ def test_publish_time_conflict_html_redirect_and_flash(seeded_db, client):
 
 
 def test_publish_browser_multi_accept_header_html_flow(seeded_db, client):
-    """Çoklu Accept başlığı ile gelen istekte HTML yönlendirme ve flash mesajı üretilir."""
+    """Çoklu Accept başlığı ile gelen istekte index'e yönlendirme ve flash mesajı üretilir."""
     login(client, ORGANIZER, "organizer")
     multi_accept = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
     response = client.post(
         "/events/1/publish",
         headers={"Accept": multi_accept},
-        follow_redirects=True,
+        follow_redirects=False,
     )
-    assert response.status_code == 200
+    assert response.status_code == 302
+    assert response.headers["Location"] == "/events/"
 
     with client.session_transaction() as sess:
         flashes = sess.get("_flashes", [])
         assert any("başarıyla yayınlandı" in f[1] for f in flashes)
+
+    page = client.get("/events/")
+    assert "başarıyla yayınlandı" in page.get_data(as_text=True)
 
 
 def test_publish_nonexistent_event_html_redirect_and_flash(seeded_db, client):
