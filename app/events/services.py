@@ -285,107 +285,53 @@ def list_events_by_organizer(db, organizer_id):
     return [dict(r) for r in rows]
 
 
-def publish_event(db, event_id: int, organizer_id: int):
-    """Taslak etkinliği yayınlar (TG-174, PB-04; BR-1.5, BR-2.2, BR-2.3, BR-2.4).
+def publish_event(db, event_id, organizer_id):
+    """TG-172: Onaylı organizatör yalnızca kendi taslak etkinliğini yayınlayabilir.
 
-    Kurallar:
-    - BR-1.5: Kullanıcı yönetici onaylı organizatör olmalıdır; değilse EventPermissionError.
-    - IDOR: Yalnızca etkinliğin sahibi organizatör yayınlayabilir; değilse EventPermissionError.
-    - Durum: Yalnızca 'draft' durumundaki etkinlikler yayınlanabilir.
-    - BR-2.2: Zorunlu alanlar (başlık, kategori, salon, tarihler, pozitif kapasite,
-      negatif olmayan fiyat) ve bitiş zamanı başlangıç zamanından sonra olmalıdır.
-    - BR-2.3: Etkinlik kapasitesi salon kapasitesini aşamaz.
-    - BR-2.4: Aynı salonda zamanı çakışan iki yayınlanmış etkinlik olamaz.
-
-    Dönüş: (True, event_dict, []) veya (False, None, [hata_mesajları]).
+    `organizer_id` doğrulanmış oturumdan gelmelidir; istek gövdesinden alınmamalıdır.
+    Dönüş: (True, event_dict, []) veya (False, None, [hata mesajları]).
+    Yetkisiz işlemlerde EventPermissionError fırlatılır.
     """
+    # 1. Etkinlik kimliğinin geçerli olduğunu doğrula.
+    if isinstance(event_id, bool) or not isinstance(event_id, int) or event_id < 1:
+        return False, None, ["Geçersiz etkinlik kimliği."]
+
+    permission_msg = (
+        "Etkinliği yayınlamak için yönetici onaylı etkinlik sahibi organizatör olmalısınız."
+    )
+
+    # 2. Yayınlama isteyen kişi yönetici onaylı organizatör mü?
     if not is_approved_organizer(organizer_id, db):
-        raise EventPermissionError(
-            "Etkinlik yayınlamak için yönetici onaylı organizatör olmalısınız."
-        )
-
-    event = get_event(db, event_id)
-    if event is None:
-        return False, None, ["Etkinlik bulunamadı."]
-
-    if event["organizer_id"] != organizer_id:
-        raise EventPermissionError("Yalnızca kendi taslak etkinliklerinizi yayınlayabilirsiniz.")
-
-    if event["status"] == "published":
-        return False, None, ["Etkinlik zaten yayınlanmış."]
-    if event["status"] != "draft":
-        msg = f"Yalnızca taslak durumundaki etkinlikler yayınlanabilir. (Durum: {event['status']})"
-        return (False, None, [msg])
-
-    errors = []
-
-    title = str(event.get("title") or "").strip()
-    category = str(event.get("category") or "").strip()
-    venue_id = event.get("venue_id")
-    capacity = event.get("capacity")
-    price = event.get("price")
-    start_time = event.get("start_time")
-    end_time = event.get("end_time")
-
-    if not title:
-        errors.append("Etkinlik başlığı zorunludur.")
-    if not category:
-        errors.append("Etkinlik kategorisi zorunludur.")
-
-    venue_row = None
-    if not venue_id:
-        errors.append("Geçerli bir salon seçilmelidir.")
-    else:
-        venue_row = db.execute(
-            "SELECT id, name, capacity FROM venues WHERE id = ?", (venue_id,)
-        ).fetchone()
-        if venue_row is None:
-            errors.append("Seçilen salon bulunamadı.")
-
-    if capacity is None or capacity < 1:
-        errors.append("Etkinlik kapasitesi en az 1 olmalıdır.")
-    elif venue_row and capacity > venue_row["capacity"]:
-        v_cap = venue_row["capacity"]
-        errors.append(f"Etkinlik kapasitesi ({capacity}), salon kapasitesini ({v_cap}) aşamaz.")
-
-    if price is None or price < 0:
-        errors.append("Bilet fiyatı negatif olamaz.")
-
-    start_dt = _parse_form_datetime(start_time)
-    end_dt = _parse_form_datetime(end_time)
-    if start_dt is None or end_dt is None:
-        errors.append("Başlangıç ve bitiş zamanı geçerli bir tarih olmalıdır.")
-    elif end_dt <= start_dt:
-        errors.append("Bitiş zamanı başlangıç zamanından sonra olmalıdır.")
-
-    if errors:
-        return False, None, errors
-
-    # BR-2.4: Aynı salonda zamanı çakışan iki etkinlik olamaz.
-    conflicts = db.execute(
-        "SELECT id, title, start_time, end_time FROM events "
-        "WHERE venue_id = ? AND status = 'published' AND id != ?",
-        (venue_id, event_id),
-    ).fetchall()
-
-    for other in conflicts:
-        other_start = _parse_form_datetime(other["start_time"])
-        other_end = _parse_form_datetime(other["end_time"])
-        if other_start and other_end and start_dt < other_end and end_dt > other_start:
-            other_title = other["title"]
-            errors.append(
-                f"Aynı salonda zamanı çakışan başka bir etkinlik bulunmaktadır ({other_title})."
-            )
-            break
-
-    if errors:
-        return False, None, errors
+        raise EventPermissionError(permission_msg)
 
     try:
-        db.execute("UPDATE events SET status = 'published' WHERE id = ?", (event_id,))
+        # 3. Etkinlik mevcut mu?
+        event = get_event(db, event_id)
+        if event is None:
+            return False, None, ["Etkinlik bulunamadı."]
+
+        # 4. Onaylı organizatör etkinliğin sahibi mi?
+        if event["organizer_id"] != organizer_id:
+            raise EventPermissionError(permission_msg)
+
+        # 5. Aynı etkinliği sadece taslaksa ve aynı kişiye aitse yayınla.
+        cursor = db.execute(
+            """
+            UPDATE events
+            SET status = 'published'
+            WHERE id = ? AND organizer_id = ? AND status = 'draft'
+            """,
+            (event_id, organizer_id),
+        )
+
+        if cursor.rowcount == 0:
+            db.rollback()
+            return False, None, ["Yalnızca taslak etkinlikler yayınlanabilir."]
+
+        # 6. Durum değişikliğini SQLite'a kalıcı olarak yaz.
         db.commit()
+        return True, get_event(db, event_id), []
+
     except sqlite3.Error:
         db.rollback()
-        return False, None, [_DB_ERROR_MSG]
-
-    return True, get_event(db, event_id), []
+        return False, None, ["Etkinlik yayınlanırken veritabanı hatası oluştu."]

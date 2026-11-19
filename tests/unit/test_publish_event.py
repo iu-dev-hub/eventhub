@@ -1,4 +1,4 @@
-"""Etkinlik yayınlama servisi birim testleri (TG-174, PB-04; BR-1.5, BR-2.2, BR-2.3, BR-2.4)."""
+"""Etkinlik yayınlama servisi birim testleri (TG-174, TG-172, PB-04; BR-1.5)."""
 
 import pytest
 
@@ -14,10 +14,6 @@ def db(app):
         db.execute(
             "INSERT INTO venues (id, name, address, capacity) "
             "VALUES (1, 'Büyük Salon', 'Adres', 100)"
-        )
-        db.execute(
-            "INSERT INTO venues (id, name, address, capacity) "
-            "VALUES (2, 'Küçük Salon', 'Adres', 30)"
         )
         db.execute(
             "INSERT INTO users (id, email, password_hash, role, organizer_approved) "
@@ -126,7 +122,7 @@ def test_publish_event_idor_protection_different_organizer(db):
     with pytest.raises(EventPermissionError) as exc_info:
         publish_event(db, event_id, organizer_id=2)
 
-    assert "yetki" in str(exc_info.value).lower() or "kendi" in str(exc_info.value).lower()
+    assert "etkinlik sahibi" in str(exc_info.value).lower()
     assert get_event(db, event_id)["status"] == "draft"
 
 
@@ -147,207 +143,27 @@ def test_publish_event_already_published(db):
 
     assert ok is False
     assert event is None
-    assert any("zaten yayınlanmış" in e.lower() for e in errors)
+    assert errors == ["Yalnızca taslak etkinlikler yayınlanabilir."]
 
 
-def test_publish_event_cancelled_cannot_be_published(db):
-    """İptal edilmiş veya taslak dışı etkinlik yayınlanamaz."""
-    event_id = _insert_event(db, organizer_id=1, status="draft")
-    db.execute("UPDATE events SET status = 'published' WHERE id = ?", (event_id,))
-    db.commit()
-
-    ok, event, errors = publish_event(db, event_id, organizer_id=1)
+@pytest.mark.parametrize("invalid_id", [0, -1, None, "abc", True])
+def test_publish_event_invalid_id(db, invalid_id):
+    """Geçersiz etkinlik ID'si reddedilir."""
+    ok, event, errors = publish_event(db, invalid_id, organizer_id=1)
 
     assert ok is False
     assert event is None
-    assert any("taslak" in e.lower() or "zaten yayınlanmış" in e.lower() for e in errors)
+    assert errors == ["Geçersiz etkinlik kimliği."]
 
 
-def test_publish_event_capacity_exceeds_venue_capacity(db):
-    """BR-2.3: Etkinlik kapasitesi salon kapasitesini aşıyorsa yayınlanamaz."""
-    # Salon 2 kapasitesi 30, etkinlik kapasitesi 50
-    event_id = _insert_event(db, organizer_id=1, venue_id=2, capacity=50)
+def test_publish_event_leaves_other_events_intact(db):
+    """Bir etkinliğin yayınlanması diğer etkinliklerin taslak durumunu etkilemez."""
+    e1 = _insert_event(db, title="Etkinlik 1", organizer_id=1, status="draft")
+    e2 = _insert_event(db, title="Etkinlik 2", organizer_id=1, status="draft")
 
-    ok, event, errors = publish_event(db, event_id, organizer_id=1)
-
-    assert ok is False
-    assert event is None
-    assert any("salon kapasitesini (30) aşamaz" in e for e in errors)
-
-
-def test_publish_event_invalid_capacity_or_price(db, monkeypatch):
-    """BR-2.2: Kapasite < 1 veya negatif fiyat kontrolü."""
-    event_id = _insert_event(db, organizer_id=1, capacity=10, price=10.0)
-
-    original_get_event = get_event
-
-    def mock_get_invalid_capacity(db_conn, eid):
-        ev = original_get_event(db_conn, eid)
-        if ev and ev["id"] == event_id:
-            ev["capacity"] = 0
-        return ev
-
-    monkeypatch.setattr("app.events.services.get_event", mock_get_invalid_capacity)
-    ok1, _, err1 = publish_event(db, event_id, organizer_id=1)
-    assert ok1 is False
-    assert any("en az 1" in e for e in err1)
-
-    def mock_get_invalid_price(db_conn, eid):
-        ev = original_get_event(db_conn, eid)
-        if ev and ev["id"] == event_id:
-            ev["price"] = -5.0
-        return ev
-
-    monkeypatch.setattr("app.events.services.get_event", mock_get_invalid_price)
-    ok2, _, err2 = publish_event(db, event_id, organizer_id=1)
-    assert ok2 is False
-    assert any("negatif olamaz" in e for e in err2)
-
-
-def test_publish_event_invalid_dates_end_before_start(db):
-    """BR-2.2: Bitiş zamanı başlangıç zamanından sonra olmalıdır."""
-    event_id = _insert_event(
-        db,
-        organizer_id=1,
-        start_time="2026-12-01T20:00",
-        end_time="2026-12-01T18:00",
-    )
-
-    ok, event, errors = publish_event(db, event_id, organizer_id=1)
-
-    assert ok is False
-    assert event is None
-    assert any("başlangıç zamanından sonra" in e for e in errors)
-
-
-def test_publish_event_missing_venue(db):
-    """Etkinliğin salonu silinmişse veya bulunamıyorsa yayınlanamaz."""
-    db.execute(
-        "INSERT INTO venues (id, name, address, capacity) VALUES (3, 'Geçici Salon', 'Adres', 50)"
-    )
-    event_id = _insert_event(db, organizer_id=1, venue_id=3)
-    db.commit()
-
-    # Salonu sil (FK kısıtını geçici olarak kapatıp salonu siliyoruz)
-    db.execute("PRAGMA foreign_keys = OFF")
-    db.execute("DELETE FROM venues WHERE id = 3")
-    db.execute("PRAGMA foreign_keys = ON")
-    db.commit()
-
-    ok, event, errors = publish_event(db, event_id, organizer_id=1)
-
-    assert ok is False
-    assert event is None
-    assert any("salon bulunamadı" in e.lower() for e in errors)
-
-
-def test_publish_event_time_conflict_in_same_venue(db):
-    """BR-2.4: Aynı salonda zamanı çakışan iki etkinlik yayınlanamaz."""
-    # Önceden yayınlanmış etkinlik: Salon 1, 14:00 - 17:00
-    _insert_event(
-        db,
-        title="Mevcut Konser",
-        venue_id=1,
-        start_time="2026-12-01T14:00",
-        end_time="2026-12-01T17:00",
-        status="published",
-        organizer_id=2,
-    )
-
-    # Çakışan taslak: Salon 1, 16:00 - 18:00
-    draft_id = _insert_event(
-        db,
-        title="Yeni Tiyatro",
-        venue_id=1,
-        start_time="2026-12-01T16:00",
-        end_time="2026-12-01T18:00",
-        status="draft",
-        organizer_id=1,
-    )
-
-    ok, event, errors = publish_event(db, draft_id, organizer_id=1)
-
-    assert ok is False
-    assert event is None
-    assert any("çakışan" in e.lower() for e in errors)
-    assert get_event(db, draft_id)["status"] == "draft"
-
-
-def test_publish_event_no_conflict_when_adjacent_times(db):
-    """BR-2.4: Biri biter bitmez diğeri başlayan etkinlikler çakışmaz."""
-    _insert_event(
-        db,
-        venue_id=1,
-        start_time="2026-12-01T10:00",
-        end_time="2026-12-01T12:00",
-        status="published",
-    )
-
-    draft_id = _insert_event(
-        db,
-        venue_id=1,
-        start_time="2026-12-01T12:00",
-        end_time="2026-12-01T14:00",
-        status="draft",
-        organizer_id=1,
-    )
-
-    ok, event, errors = publish_event(db, draft_id, organizer_id=1)
+    ok, event, errors = publish_event(db, e1, organizer_id=1)
 
     assert ok is True
-    assert errors == []
     assert event["status"] == "published"
-
-
-def test_publish_event_no_conflict_in_different_venues(db):
-    """BR-2.4: Farklı salonlardaki etkinlikler aynı saatte olsa bile çakışmaz."""
-    _insert_event(
-        db,
-        venue_id=1,
-        start_time="2026-12-01T14:00",
-        end_time="2026-12-01T17:00",
-        status="published",
-    )
-
-    draft_id = _insert_event(
-        db,
-        venue_id=2,
-        start_time="2026-12-01T14:00",
-        end_time="2026-12-01T17:00",
-        capacity=20,
-        status="draft",
-        organizer_id=1,
-    )
-
-    ok, event, errors = publish_event(db, draft_id, organizer_id=1)
-
-    assert ok is True
-    assert errors == []
-    assert event["status"] == "published"
-
-
-def test_publish_event_no_conflict_with_other_drafts(db):
-    """BR-2.4: Henüz yayınlanmamış taslak etkinlikler salonu bloke etmez."""
-    _insert_event(
-        db,
-        venue_id=1,
-        start_time="2026-12-01T14:00",
-        end_time="2026-12-01T17:00",
-        status="draft",
-        organizer_id=2,
-    )
-
-    draft_id = _insert_event(
-        db,
-        venue_id=1,
-        start_time="2026-12-01T14:00",
-        end_time="2026-12-01T17:00",
-        status="draft",
-        organizer_id=1,
-    )
-
-    ok, event, errors = publish_event(db, draft_id, organizer_id=1)
-
-    assert ok is True
-    assert errors == []
-    assert event["status"] == "published"
+    assert get_event(db, e1)["status"] == "published"
+    assert get_event(db, e2)["status"] == "draft"

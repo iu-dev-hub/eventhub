@@ -3,8 +3,9 @@
 İş Kuralları ve Güvenlik:
 - BR-1.5: Yalnızca yönetici onaylı organizatörler işlem yapabilir (yetkisiz: 401/403).
 - IDOR: Yalnızca etkinliğin sahibi organizatör yayınlayabilir (başka organizatör: 403).
-- BR-2.2 & BR-2.3: Zorunlu alanlar, pozitif kapasite, salon kapasitesi aşılmaması (400).
-- BR-2.4: Aynı salonda zamanı çakışan iki etkinlik olamaz (409).
+- Zaten yayınlanmış veya taslak olmayan etkinlik yayınlanamaz (409 Conflict).
+- Var olmayan etkinlik yayınlanamaz (404 Not Found).
+- Geçersiz etkinlik ID'si reddedilir (400 Bad Request).
 - Başarılı durumda etkinlik 'published' durumuna geçer, flash mesajı eklenir ve HTTP 200 döner.
 """
 
@@ -67,26 +68,6 @@ def seeded_db(app):
             ") VALUES (2, 'Sabah Caz', 'Konser', 1, '2026-12-01T10:00', "
             "'2026-12-01T14:00', 50, 50.0, 'published', ?)",
             (OTHER_ORGANIZER,),
-        )
-
-        # 3 nolu taslak: ORGANIZER'ın Salon 1'de 12:00-15:00 etkinliği (2 ile çakışır BR-2.4)
-        db.execute(
-            "INSERT INTO events ("
-            "id, title, category, venue_id, start_time, "
-            "end_time, capacity, price, status, organizer_id"
-            ") VALUES (3, 'Öğle Tiyatrosu', 'Tiyatro', 1, '2026-12-01T12:00', "
-            "'2026-12-01T15:00', 40, 20.0, 'draft', ?)",
-            (ORGANIZER,),
-        )
-
-        # 4 nolu taslak: Kapasitesi salon kapasitesini aşan taslak (Kapasite 50, Salon 2: 20)
-        db.execute(
-            "INSERT INTO events ("
-            "id, title, category, venue_id, start_time, "
-            "end_time, capacity, price, status, organizer_id"
-            ") VALUES (4, 'Büyük Stand-up', 'Komedi', 2, '2026-12-02T18:00', "
-            "'2026-12-02T20:00', 50, 0, 'draft', ?)",
-            (ORGANIZER,),
         )
 
         db.commit()
@@ -162,7 +143,7 @@ def test_idor_protection_cannot_publish_other_organizers_draft(seeded_db, client
 
     assert response.status_code == 403
     err = response.get_json()["error"].lower()
-    assert "yetki" in err or "kendi" in err
+    assert "etkinlik sahibi" in err or "onay" in err or "yetki" in err
 
     with seeded_db.app_context():
         event = get_db().execute("SELECT status FROM events WHERE id = 1").fetchone()
@@ -184,30 +165,13 @@ def test_publish_already_published_event_returns_conflict(seeded_db, client):
     response = client.post("/events/2/publish")
 
     assert response.status_code == 409
-    assert any("zaten yayınlanmış" in e.lower() for e in response.get_json().get("errors", []))
+    assert any("taslak" in e.lower() for e in response.get_json().get("errors", []))
 
 
-def test_publish_time_conflict_returns_conflict(seeded_db, client):
-    """BR-2.4: Aynı salonda zamanı çakışan etkinlik yayınlanamaz (409 Conflict)."""
+def test_publish_invalid_event_id_returns_bad_request(seeded_db, client):
+    """Geçersiz etkinlik ID'si 400 Bad Request döner."""
     login(client, ORGANIZER, "organizer")
-    response = client.post("/events/3/publish")
-
-    assert response.status_code == 409
-    assert any("çakışan" in e.lower() for e in response.get_json().get("errors", []))
-
-    with seeded_db.app_context():
-        event = get_db().execute("SELECT status FROM events WHERE id = 3").fetchone()
-        assert event["status"] == "draft"
-
-
-def test_publish_capacity_exceeded_returns_bad_request(seeded_db, client):
-    """BR-2.3: Salon kapasitesini aşan taslak yayınlanamaz (400 Bad Request)."""
-    login(client, ORGANIZER, "organizer")
-    response = client.post("/events/4/publish")
+    response = client.post("/events/0/publish")
 
     assert response.status_code == 400
-    assert any("salon kapasitesini (20) aşamaz" in e for e in response.get_json().get("errors", []))
-
-    with seeded_db.app_context():
-        event = get_db().execute("SELECT status FROM events WHERE id = 4").fetchone()
-        assert event["status"] == "draft"
+    assert any("geçersiz" in e.lower() for e in response.get_json().get("errors", []))

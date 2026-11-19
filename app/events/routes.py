@@ -90,7 +90,12 @@ def publish(event_id):
             return jsonify({"error": errors[0], "errors": errors}), 404
         status_code = (
             409
-            if any("çakışan" in e.lower() or "zaten yayınlanmış" in e.lower() for e in errors)
+            if any(
+                "çakışan" in e.lower()
+                or "zaten yayınlanmış" in e.lower()
+                or "yalnızca taslak" in e.lower()
+                for e in errors
+            )
             else 400
         )
         if request.headers.get("Accept") == "text/html":
