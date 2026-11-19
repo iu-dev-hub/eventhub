@@ -278,3 +278,91 @@ def test_publish_failure_time_conflict_shows_flash_message(seeded, client):
     html = page.get_data(as_text=True)
     # Servisin gerçek hata mesajı: "Aynı salonda bu saatlerde yayınlanmış başka bir etkinlik var."
     assert "aynı salonda bu saatlerde yayınlanmış başka bir etkinlik var" in html.lower()
+
+
+# --- TG-176: Uçtan Uca Kabul Kriteri Yaşam Döngüsü ve Görünürlük Testleri ---
+
+
+def test_full_lifecycle_create_draft_then_publish_updates_visibility_for_all_roles(seeded, client):
+    """TC-176-I04 · PB-04 (#28) Kabul Kriteri: Taslak oluşturma -> yayınlama -> görünürlük geçişi.
+
+    1. Onaylı organizatör form üzerinden yeni bir taslak oluşturur.
+    2. Yayınlama öncesi katılımcı ve anonim kullanıcı taslağı /events/ ve /events/<id> (404)
+       üzerinde göremez.
+    3. Organizatör /events/<id>/publish ile taslağı yayınlar.
+    4. Yayınlama sonrası durum DB'de kalıcı olarak 'published' olur, organizatörde 'Yayında' rozeti
+       görünür, 'Yayınla' butonu kalkar ve katılımcı/anonim kullanıcı etkinliği görebilir.
+    """
+    login(client, ORGANIZER, "organizer")
+    create_resp = client.post(
+        "/events/create",
+        data={
+            "title": "TG-176 Kabul Testi Semineri",
+            "category": "Eğitim",
+            "venue_id": "1",
+            "start_time": "2026-12-10T10:00",
+            "end_time": "2026-12-10T12:00",
+            "capacity": "100",
+            "price": "0",
+        },
+        follow_redirects=True,
+    )
+    assert create_resp.status_code == 200
+    assert "Taslak etkinlik kaydedildi" in create_resp.get_data(as_text=True)
+
+    with seeded.app_context():
+        row = (
+            get_db()
+            .execute(
+                "SELECT id, status FROM events WHERE title = ?", ("TG-176 Kabul Testi Semineri",)
+            )
+            .fetchone()
+        )
+        assert row is not None
+        event_id = row["id"]
+        assert row["status"] == "draft"
+
+    # Yayınlama öncesi: katılımcı listede göremez ve detayda 404 alır
+    login(client, PARTICIPANT, "participant")
+    participant_list_before = client.get("/events/").get_data(as_text=True)
+    assert "TG-176 Kabul Testi Semineri" not in participant_list_before
+    assert client.get(f"/events/{event_id}").status_code == 404
+
+    # Yayınlama: sahibi olan onaylı organizatör yayınlar
+    login(client, ORGANIZER, "organizer")
+    pub_resp = client.post(
+        f"/events/{event_id}/publish",
+        headers={"Accept": "text/html"},
+        follow_redirects=True,
+    )
+    assert pub_resp.status_code == 200
+
+    # Organizatör listesinde başarı mesajı ve 'Yayında' durumu görünür, publish butonu kalkar
+    org_list_after = client.get("/events/").get_data(as_text=True)
+    assert f"Etkinlik başarıyla yayınlandı. (Etkinlik No: {event_id})" in org_list_after
+    assert f"/events/{event_id}/publish" not in org_list_after
+
+    # Yayınlama sonrası: katılımcı hem listede hem detay uç noktasında (200) etkinliği görür
+    login(client, PARTICIPANT, "participant")
+    participant_list_after = client.get("/events/").get_data(as_text=True)
+    assert "TG-176 Kabul Testi Semineri" in participant_list_after
+
+    detail_after = client.get(f"/events/{event_id}")
+    assert detail_after.status_code == 200
+    assert detail_after.get_json()["status"] == "published"
+
+
+def test_html_publish_redirect_target_is_documented_for_qa_finding(seeded, client):
+    """TC-176-I05: HTML yayınlama isteğinin yönlendirme davranışını ve flash mesajını doğrular."""
+    login(client, ORGANIZER, "organizer")
+    response = client.post(
+        "/events/1/publish",
+        headers={"Accept": "text/html"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith(("/events/1", "/events/"))
+
+    with client.session_transaction() as sess:
+        flashes = sess.get("_flashes", [])
+        assert ("success", "Etkinlik başarıyla yayınlandı. (Etkinlik No: 1)") in flashes

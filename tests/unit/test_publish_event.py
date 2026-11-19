@@ -169,3 +169,174 @@ def test_publish_event_leaves_other_events_intact(db):
     assert event["status"] == "published"
     assert get_event(db, e1)["status"] == "published"
     assert get_event(db, e2)["status"] == "draft"
+
+
+# --- TG-176: Birim Seviyesi İş Kuralları, Sınır Değer ve Hata Kurtarma Testleri ---
+
+
+def _set_raw_field(db, event_id, field, value):
+    """Test veritabanında CHECK kısıtını geçici kapatarak bozuk taslak verisi simüle eder."""
+    db.execute("PRAGMA ignore_check_constraints = ON")
+    try:
+        db.execute(f"UPDATE events SET {field} = ? WHERE id = ?", (value, event_id))
+        db.commit()
+    finally:
+        db.execute("PRAGMA ignore_check_constraints = OFF")
+
+
+@pytest.mark.parametrize(
+    "role,approved",
+    [
+        ("participant", 0),
+        ("participant", 1),
+        ("admin", 0),
+        ("admin", 1),
+    ],
+)
+def test_non_organizer_roles_cannot_publish_even_if_approved_flag_is_set(db, role, approved):
+    """TC-176-U02 · BR-1.5: Yalnızca yönetici onaylı 'organizer' rolü etkinlik yayınlayabilir."""
+    uid = db.execute(
+        "INSERT INTO users (email, password_hash, role, organizer_approved) VALUES (?, 'x', ?, ?)",
+        (f"{role}_{approved}@example.com", role, approved),
+    ).lastrowid
+    event_id = _insert_event(db, organizer_id=uid, status="draft")
+
+    with pytest.raises(EventPermissionError):
+        publish_event(db, event_id, organizer_id=uid)
+
+    assert get_event(db, event_id)["status"] == "draft"
+
+
+@pytest.mark.parametrize("valid_capacity", [1, 99, 100])
+def test_publish_event_capacity_boundary_valid_values(db, valid_capacity):
+    """TC-176-U06 · BR-2.3: Salon kapasitesi (100) sınır değerlerinde (1, 99, 100) yayınlanır."""
+    event_id = _insert_event(
+        db,
+        organizer_id=1,
+        capacity=valid_capacity,
+        start_time=f"2026-12-0{valid_capacity % 5 + 2}T10:00",
+        end_time=f"2026-12-0{valid_capacity % 5 + 2}T12:00",
+    )
+
+    ok, event, errors = publish_event(db, event_id, organizer_id=1)
+
+    assert ok is True
+    assert errors == []
+    assert event["status"] == "published"
+    assert get_event(db, event_id)["status"] == "published"
+
+
+@pytest.mark.parametrize(
+    "invalid_capacity,expected_error",
+    [
+        (101, "Etkinlik kapasitesi salon kapasitesini aşamaz."),
+        (500, "Etkinlik kapasitesi salon kapasitesini aşamaz."),
+        (0, "Etkinlik kapasitesi en az 1 olmalıdır."),
+        (-5, "Etkinlik kapasitesi en az 1 olmalıdır."),
+        ("abc", "Etkinlik kapasitesi geçerli bir tam sayı olmalıdır."),
+    ],
+)
+def test_publish_event_capacity_boundary_invalid_values(db, invalid_capacity, expected_error):
+    """TC-176-U06 · BR-2.3: Salon kapasitesini aşan veya geçersiz kapasiteli taslak yayınlanamaz."""
+    event_id = _insert_event(db, organizer_id=1, capacity=50)
+    _set_raw_field(db, event_id, "capacity", invalid_capacity)
+
+    ok, event, errors = publish_event(db, event_id, organizer_id=1)
+
+    assert ok is False
+    assert event is None
+    assert expected_error in errors
+    assert get_event(db, event_id)["status"] == "draft"
+
+
+@pytest.mark.parametrize("valid_price", [0, 0.0, 0.01, 150.75])
+def test_publish_event_price_boundary_valid_values(db, valid_price):
+    """TC-176-U07 · BR-2.2: Ücretsiz (0) ve pozitif bilet fiyatlı taslaklar yayınlanabilir."""
+    event_id = _insert_event(db, organizer_id=1, price=valid_price)
+
+    ok, event, errors = publish_event(db, event_id, organizer_id=1)
+
+    assert ok is True
+    assert errors == []
+    assert event["status"] == "published"
+
+
+@pytest.mark.parametrize("invalid_price", [-0.01, -10, "gecersiz", "nan", "inf", float("inf")])
+def test_publish_event_price_boundary_invalid_values(db, invalid_price):
+    """TC-176-U07 · BR-2.2: Negatif veya sayısal olmayan bilet fiyatıyla yayınlama engellenir."""
+    event_id = _insert_event(db, organizer_id=1, price=10.0)
+    _set_raw_field(db, event_id, "price", invalid_price)
+
+    ok, event, errors = publish_event(db, event_id, organizer_id=1)
+
+    assert ok is False
+    assert event is None
+    assert "Bilet fiyatı sıfır veya pozitif bir sayı olmalıdır." in errors
+    assert get_event(db, event_id)["status"] == "draft"
+
+
+@pytest.mark.parametrize(
+    "start_time,end_time",
+    [
+        ("2026-12-01T18:00", "2026-12-01T18:01"),  # Başlangıçtan 1 dk içeride
+        ("2026-12-01T20:59", "2026-12-01T22:00"),  # Bitişten 1 dk içeride
+        ("2026-12-01T17:59", "2026-12-01T18:01"),  # Sol sınırda 1 dk kesişim
+        ("2026-12-01T18:00", "2026-12-01T21:00"),  # Birebir aynı aralık
+    ],
+)
+def test_publish_event_one_minute_time_overlap_is_rejected(db, start_time, end_time):
+    """TC-176-U09 · BR-2.4: Aynı salonda 1 dakikalık zaman kesişimi dahi yayınlamayı engeller."""
+    _insert_event(
+        db,
+        organizer_id=2,
+        status="published",
+        start_time="2026-12-01T18:00",
+        end_time="2026-12-01T21:00",
+    )
+    candidate_id = _insert_event(
+        db,
+        organizer_id=1,
+        status="draft",
+        start_time=start_time,
+        end_time=end_time,
+    )
+
+    ok, event, errors = publish_event(db, candidate_id, organizer_id=1)
+
+    assert ok is False
+    assert event is None
+    assert errors == ["Aynı salonda bu saatlerde yayınlanmış başka bir etkinlik var."]
+    assert get_event(db, candidate_id)["status"] == "draft"
+
+
+def test_publish_event_database_error_triggers_rollback_and_keeps_draft(db):
+    """TC-176-U10: UPDATE sırasında DB hatası oluşursa rollback yapılır ve durum draft kalır."""
+    import sqlite3
+
+    event_id = _insert_event(db, organizer_id=1, status="draft")
+
+    class FailingUpdateDb:
+        def __init__(self, real_db):
+            self.real_db = real_db
+            self.rolled_back = False
+
+        def execute(self, sql, *params):
+            if sql.lstrip().upper().startswith("UPDATE"):
+                raise sqlite3.OperationalError("simulated disk error on update")
+            return self.real_db.execute(sql, *params)
+
+        def commit(self):
+            self.real_db.commit()
+
+        def rollback(self):
+            self.rolled_back = True
+            self.real_db.rollback()
+
+    wrapper = FailingUpdateDb(db)
+    ok, event, errors = publish_event(wrapper, event_id, organizer_id=1)
+
+    assert ok is False
+    assert event is None
+    assert errors == ["Etkinlik yayınlanırken veritabanı hatası oluştu."]
+    assert wrapper.rolled_back is True
+    assert get_event(db, event_id)["status"] == "draft"
