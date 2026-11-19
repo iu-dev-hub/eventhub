@@ -14,8 +14,10 @@ def auth_db(app):
     with app.app_context():
         db = get_db()
 
-        # Accounts onay sütunu henüz gerçek şemada yok; yalnızca test DB'ye eklenir.
-        db.execute("ALTER TABLE users ADD COLUMN organizer_approved INTEGER NOT NULL DEFAULT 0")
+        # Onay sütunu yalnızca izole test veritabanında eksikse eklenir.
+        columns = {row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()}
+        if "organizer_approved" not in columns:
+            db.execute("ALTER TABLE users ADD COLUMN organizer_approved INTEGER NOT NULL DEFAULT 0")
 
         def add_user(email, role, approved):
             return db.execute(

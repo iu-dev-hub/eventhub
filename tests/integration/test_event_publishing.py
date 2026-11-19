@@ -14,9 +14,11 @@ def event_db(app):
     with app.app_context():
         db = get_db()
 
-        # Yalnızca izole TEST veritabanında onay özelliğini taklit et.
-        # Gerçek veritabanının şeması bu test tarafından değiştirilmez.
-        db.execute("ALTER TABLE users ADD COLUMN organizer_approved INTEGER NOT NULL DEFAULT 0")
+        # Yalnızca izole TEST veritabanında, onay sütunu eksikse ekle.
+        # Gerçek uygulama veritabanının şeması değiştirilmez.
+        columns = {row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()}
+        if "organizer_approved" not in columns:
+            db.execute("ALTER TABLE users ADD COLUMN organizer_approved INTEGER NOT NULL DEFAULT 0")
 
         organizer_id = db.execute(
             """
