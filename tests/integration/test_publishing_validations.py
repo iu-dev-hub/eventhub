@@ -93,6 +93,23 @@ def _assert_still_draft(context, event_id):
         assert row[0] == "draft"
 
 
+def _set_invalid_numeric_value_for_test(db, event_id, field, value):
+    """Sadece izole test DB'sinde CHECK kısıtını aşarak bozuk eski veri taklit et.
+
+    Normal uygulamada SQLite capacity > 0 ve price >= 0 koşullarını zaten korur.
+    Bu yardımcı fonksiyon, yayınlama servisinin ikinci güvenlik kontrolünü test eder.
+    """
+    if field not in ("capacity", "price"):
+        raise ValueError("Yalnızca kapasite veya fiyat sınır testleri desteklenir.")
+
+    db.execute("PRAGMA ignore_check_constraints = ON")
+    try:
+        db.execute(f"UPDATE events SET {field} = ? WHERE id = ?", (value, event_id))
+        db.commit()
+    finally:
+        db.execute("PRAGMA ignore_check_constraints = OFF")
+
+
 def test_valid_event_can_be_published(publishing_db):
     """BR-2.2: Geçerli ücretsiz etkinlik yayınlanır ve kayıt kalıcıdır."""
     event_id = publishing_db["add_event"]()
@@ -187,6 +204,37 @@ def test_incompatible_datetime_timezones_are_rejected(publishing_db):
     _assert_still_draft(publishing_db, event_id)
 
 
+@pytest.mark.parametrize("capacity", [0, -1])
+def test_capacity_below_minimum_prevents_publishing(publishing_db, capacity):
+    """BR-2.3: 0 ve negatif kapasite yayınlama sırasında da reddedilir."""
+    event_id = publishing_db["add_event"]()
+    db = publishing_db["db"]
+    _set_invalid_numeric_value_for_test(db, event_id, "capacity", capacity)
+
+    assert get_event(db, event_id)["capacity"] == capacity
+    ok, event, errors = _publish(publishing_db, event_id)
+
+    assert ok is False
+    assert event is None
+    assert "Etkinlik kapasitesi en az 1 olmalıdır." in errors
+    _assert_still_draft(publishing_db, event_id)
+
+
+def test_negative_price_prevents_publishing(publishing_db):
+    """BR-2.2: Negatif bilet fiyatı yayınlama sırasında da reddedilir."""
+    event_id = publishing_db["add_event"]()
+    db = publishing_db["db"]
+    _set_invalid_numeric_value_for_test(db, event_id, "price", -1)
+
+    assert get_event(db, event_id)["price"] == -1
+    ok, event, errors = _publish(publishing_db, event_id)
+
+    assert ok is False
+    assert event is None
+    assert "Bilet fiyatı sıfır veya pozitif bir sayı olmalıdır." in errors
+    _assert_still_draft(publishing_db, event_id)
+
+
 def test_capacity_over_venue_limit_prevents_publishing(publishing_db):
     """BR-2.3: Taslak oluşturulduktan sonra kapasite yükseltilse bile reddedilir."""
     event_id = publishing_db["add_event"](capacity=40)
@@ -253,7 +301,7 @@ def test_overlapping_published_event_blocks_publishing(
 
     assert ok is False
     assert event is None
-    assert any("salon" in msg.lower() for msg in errors)
+    assert errors == ["Aynı salonda bu saatlerde yayınlanmış başka bir etkinlik var."]
     _assert_still_draft(publishing_db, event_id)
 
 
