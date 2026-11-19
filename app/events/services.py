@@ -285,38 +285,52 @@ def list_events_by_organizer(db, organizer_id):
     return [dict(r) for r in rows]
 
 
-def publish_event(db, event_id):
-    """TG-171: Taslak etkinliği yayınlar, durumu veritabanına kalıcı kaydeder."""
+def publish_event(db, event_id, organizer_id):
+    """TG-172: Onaylı organizatör yalnızca kendi taslak etkinliğini yayınlayabilir.
 
-    # Etkinlik kimliği pozitif tam sayı olmalı (bool da geçersiz).
+    `organizer_id` doğrulanmış oturumdan gelmelidir; istek gövdesinden alınmamalıdır.
+    Dönüş: (True, event_dict, []) veya (False, None, [hata mesajları]).
+    Yetkisiz işlemlerde EventPermissionError fırlatılır.
+    """
+    # 1. Etkinlik kimliğinin geçerli olduğunu doğrula.
     if isinstance(event_id, bool) or not isinstance(event_id, int) or event_id < 1:
         return False, None, ["Geçersiz etkinlik kimliği."]
 
+    permission_msg = (
+        "Etkinliği yayınlamak için yönetici onaylı etkinlik sahibi organizatör olmalısınız."
+    )
+
+    # 2. Yayınlama isteyen kişi yönetici onaylı organizatör mü?
+    if not is_approved_organizer(organizer_id, db):
+        raise EventPermissionError(permission_msg)
+
     try:
-        # Yalnızca taslak durumundaki etkinliği güncelle.
+        # 3. Etkinlik mevcut mu?
+        event = get_event(db, event_id)
+        if event is None:
+            return False, None, ["Etkinlik bulunamadı."]
+
+        # 4. Onaylı organizatör etkinliğin sahibi mi?
+        if event["organizer_id"] != organizer_id:
+            raise EventPermissionError(permission_msg)
+
+        # 5. Aynı etkinliği sadece taslaksa ve aynı kişiye aitse yayınla.
         cursor = db.execute(
             """
             UPDATE events
             SET status = 'published'
-            WHERE id = ? AND status = 'draft'
+            WHERE id = ? AND organizer_id = ? AND status = 'draft'
             """,
-            (event_id,),
+            (event_id, organizer_id),
         )
 
         if cursor.rowcount == 0:
-            # Başarısız UPDATE'in başlattığı işlemi temizle.
             db.rollback()
-            event = get_event(db, event_id)
-            if event is None:
-                return False, None, ["Etkinlik bulunamadı."]
             return False, None, ["Yalnızca taslak etkinlikler yayınlanabilir."]
 
-        # Durum değişikliğini kalıcı hale getir.
+        # 6. Durum değişikliğini SQLite'a kalıcı olarak yaz.
         db.commit()
-
-        # Veritabanından yeniden okuyarak güncel bilgiyi döndür.
-        event = get_event(db, event_id)
-        return True, event, []
+        return True, get_event(db, event_id), []
 
     except sqlite3.Error:
         db.rollback()
