@@ -3,6 +3,8 @@
 Tests full request-response lifecycle with Flask test client and isolated SQLite database.
 """
 
+import re
+
 import pytest
 
 from app.accounts.services import (
@@ -627,6 +629,43 @@ def test_auth_screens_render_templates(client):
     res_reg = client.get("/accounts/register")
     assert res_reg.status_code == 200
     assert "Hemen kayıt olun!" in res_reg.get_data(as_text=True)
+
+
+@pytest.mark.parametrize(
+    ("page", "label", "target", "signed_in", "link_count"),
+    [
+        ("/login", "Hesaplara Dön", "/accounts/", False, 1),
+        ("/register", "Hesaplara Dön", "/accounts/", False, 1),
+        ("/forgot-password", "Giriş Ekranına Dön", "/accounts/login", False, 1),
+        ("/reset-password/demo-token", "Giriş Ekranına Dön", "/accounts/login", False, 1),
+        ("/change-password", "Panele Geri Dön", "/accounts/dashboard", True, 1),
+        ("/settings", "İptal", "/accounts/", True, 2),
+        ("/profile", "İptal", "/accounts/", True, 1),
+    ],
+)
+def test_account_form_navigation(client, page, label, target, signed_in, link_count):
+    """TG-165: Geri dönüş ve iptal bağlantıları GET ile erişilebilir olmalıdır."""
+    if signed_in:
+        credentials = {"email": "navigation@example.com", "password": "Password123"}
+        registration = client.post(
+            "/accounts/register", json={**credentials, "terms_accepted": True}
+        )
+        assert registration.status_code == 201
+        assert client.post("/accounts/login", json=credentials).status_code == 200
+
+    headers = {"Accept": "text/html"}
+    response = client.get(f"/accounts{page}", headers=headers)
+    assert response.status_code == 200
+
+    links = re.findall(
+        rf'<a\s+href="([^"]+)"[^>]*>\s*{re.escape(label)}\s*</a>',
+        response.get_data(as_text=True),
+    )
+    assert links == [target] * link_count
+
+    destination = client.get(target, headers=headers)
+    assert destination.status_code == 200
+    assert destination.mimetype == "text/html"
 
 
 def test_logout_confirm_and_post_flow(client):
