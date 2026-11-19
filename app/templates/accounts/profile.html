@@ -7,6 +7,8 @@
 {% endblock %}
 
 {% block content %}
+{% set full_name = (user.first_name ~ ' ' ~ user.last_name)|trim %}
+{% set role_labels = {'participant': 'Katılımcı', 'organizer': 'Organizatör', 'admin': 'Yönetici'} %}
 <div class="dashboard-layout">
   <!-- Sol Sidebar -->
   <aside class="sidebar">
@@ -28,21 +30,23 @@
   <div class="dashboard-main">
     <div class="profile-card">
       <div class="profile-avatar-section">
-        <div class="avatar-circle">
+        <div class="avatar-circle" aria-hidden="true">
           {{ user.first_name[0]|upper if user.first_name else user.email[0]|upper }}
         </div>
-        <div>
-          <h2 style="margin: 0 0 0.25rem 0; font-size: 1.4rem;">
-            {{ user.first_name }} {{ user.last_name }}
-          </h2>
-          <p style="margin: 0; color: var(--text-muted); font-size: 0.9rem;">
-            {{ user.email }}
-          </p>
-          {% if user.is_student %}
-            <span style="display: inline-block; margin-top: 0.4rem; background: #eff6ff; color: #1d4ed8; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.78rem; font-weight: 600;">
-              🎓 Öğrenci Hesabı {% if user.student_number %}(No: {{ user.student_number }}){% endif %}
-            </span>
-          {% endif %}
+        <div class="profile-identity">
+          <h1>{{ full_name or 'Profilim' }}</h1>
+          <p>{{ user.email }}</p>
+          <dl class="profile-student-status">
+            <dt>Öğrenci statüsü</dt>
+            <dd>
+              {% if user.is_student %}
+                <span class="student-badge">Öğrenci Hesabı</span>
+                <p>Kayıt beyanı{% if user.student_number %} · Öğrenci no. {{ user.student_number }}{% endif %}</p>
+              {% else %}
+                Öğrenci beyanı yok
+              {% endif %}
+            </dd>
+          </dl>
         </div>
       </div>
 
@@ -102,7 +106,7 @@
             type="text"
             id="role"
             class="form-control"
-            value="{{ user.role|capitalize }}"
+            value="{{ role_labels.get(user.role, user.role|capitalize) }}"
             disabled
             readonly
             style="background: #f1f5f9; cursor: not-allowed;"
@@ -112,10 +116,11 @@
           </small>
         </div>
 
-        <div style="margin-top: 1.75rem;">
-          <button type="submit" id="profile-submit-btn" class="btn btn-primary" style="width: auto; min-width: 180px;">
+        <div class="account-form-actions" style="margin-top: 1.75rem;">
+          <button type="submit" id="profile-submit-btn" class="btn btn-primary" style="min-width: 180px;">
             Değişiklikleri Kaydet
           </button>
+          <a href="{{ url_for('accounts.index') }}" class="btn btn-secondary">İptal</a>
         </div>
       </form>
     </div>
