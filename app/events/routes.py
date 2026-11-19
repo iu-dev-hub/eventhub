@@ -10,11 +10,11 @@ def index():
     return render_template("events/index.html")
 
 
-def _forbidden_unless_approved_organizer():
+def _forbidden_unless_approved_organizer(action="oluşturmak"):
     """BR-1.5: yalnızca rol yetmez, yönetici onayı da gerekir. Yetkisizse 403 döner."""
     if not services.is_approved_organizer(g.user_id, get_db()):
         return jsonify(
-            {"error": "Etkinlik oluşturmak için yönetici onaylı organizatör olmalısınız."}
+            {"error": f"Etkinlik {action} için yönetici onaylı organizatör olmalısınız."}
         ), 403
     return None
 
@@ -69,6 +69,45 @@ def event_detail(event_id):
         # Taslağın varlığını sızdırmamak için 404 döndürülür.
         return jsonify({"error": "Etkinlik bulunamadı."}), 404
     return jsonify(event)
+
+
+@bp.route("/<int:event_id>/publish", methods=["POST"])
+@role_required("organizer")
+def publish(event_id):
+    """Taslak etkinliği yayınlar (TG-174, PB-04; BR-1.5, BR-2.2, BR-2.3, BR-2.4)."""
+    denied = _forbidden_unless_approved_organizer(action="yayınlamak")
+    if denied:
+        return denied
+
+    db = get_db()
+    try:
+        ok, event, errors = services.publish_event(db, event_id, organizer_id=g.user_id)
+    except services.EventPermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
+
+    if not ok:
+        if errors and errors[0] == "Etkinlik bulunamadı.":
+            return jsonify({"error": errors[0], "errors": errors}), 404
+        status_code = (
+            409
+            if any("çakışan" in e.lower() or "zaten yayınlanmış" in e.lower() for e in errors)
+            else 400
+        )
+        if request.headers.get("Accept") == "text/html":
+            for err in errors:
+                flash(err, "error")
+            return redirect(
+                url_for("events.event_detail", event_id=event_id)
+                if services.get_event(db, event_id)
+                else url_for("events.index")
+            )
+        return jsonify({"error": errors[0], "errors": errors}), status_code
+
+    msg = f"Etkinlik başarıyla yayınlandı. (Etkinlik No: {event['id']})"
+    flash(msg, "success")
+    if request.headers.get("Accept") == "text/html":
+        return redirect(url_for("events.event_detail", event_id=event_id))
+    return jsonify({"message": msg, "event": event}), 200
 
 
 @bp.route("/venues", methods=["GET"])
