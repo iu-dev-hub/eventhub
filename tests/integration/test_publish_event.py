@@ -70,6 +70,16 @@ def seeded_db(app):
             (OTHER_ORGANIZER,),
         )
 
+        # 3 nolu taslak: ORGANIZER (Salon 1, 12:00 - 16:00 -> 2 nolu etkinlik ile çakışır)
+        db.execute(
+            "INSERT INTO events ("
+            "id, title, category, venue_id, start_time, "
+            "end_time, capacity, price, status, organizer_id"
+            ") VALUES (3, 'Öğle Caz', 'Konser', 1, '2026-12-01T12:00', "
+            "'2026-12-01T16:00', 40, 50.0, 'draft', ?)",
+            (ORGANIZER,),
+        )
+
         db.commit()
     return app
 
@@ -175,3 +185,30 @@ def test_publish_invalid_event_id_returns_bad_request(seeded_db, client):
 
     assert response.status_code == 400
     assert any("geçersiz" in e.lower() for e in response.get_json().get("errors", []))
+
+
+def test_publish_time_conflict_returns_conflict_409(seeded_db, client):
+    """Zaman çakışması olan taslak yayınlanamaz, HTTP 409 ve hata mesajı döner (BR-2.4)."""
+    login(client, ORGANIZER, "organizer")
+    response = client.post("/events/3/publish")
+
+    assert response.status_code == 409
+    data = response.get_json()
+    conflict_msg = "Aynı salonda bu saatlerde yayınlanmış başka bir etkinlik var."
+    assert conflict_msg in data.get("errors", [])
+
+
+def test_publish_time_conflict_html_redirect_and_flash(seeded_db, client):
+    """Tarayıcı isteğinde zaman çakışması durumunda flash mesajı üretilir ve yönlendirilir."""
+    login(client, ORGANIZER, "organizer")
+    response = client.post(
+        "/events/3/publish",
+        headers={"Accept": "text/html"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+
+    with client.session_transaction() as sess:
+        flashes = sess.get("_flashes", [])
+        conflict_msg = "Aynı salonda bu saatlerde yayınlanmış başka bir etkinlik var."
+        assert any(conflict_msg in f[1] for f in flashes)

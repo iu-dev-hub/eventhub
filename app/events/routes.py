@@ -81,7 +81,7 @@ def publish(event_id):
 
     db = get_db()
     try:
-        ok, event, errors = services.publish_event(db, event_id, organizer_id=g.user_id)
+        ok, event, errors = services.publish_event(db, event_id, g.user_id)
     except services.EventPermissionError as exc:
         return jsonify({"error": str(exc)}), 403
 
@@ -91,7 +91,8 @@ def publish(event_id):
         status_code = (
             409
             if any(
-                "çakışan" in e.lower()
+                "başka bir etkinlik var" in e.lower()
+                or "çakış" in e.lower()
                 or "zaten yayınlanmış" in e.lower()
                 or "yalnızca taslak" in e.lower()
                 for e in errors
