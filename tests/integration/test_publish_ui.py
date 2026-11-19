@@ -193,15 +193,19 @@ def test_successful_publish_action_shows_flash_message_and_updates_ui(seeded, cl
 
 
 def test_publish_failure_unapproved_organizer_shows_flash_message(seeded, client):
-    """Onaysız organizatör yayınlama denediğinde yetki hatası (403) alır."""
+    """Onaysız organizatör yayınlama denediğinde yetki hatası flash mesajı görüntülenir."""
     login(client, UNAPPROVED, "organizer")
 
     response = client.post(
         "/events/7/publish",
         headers={"Accept": "text/html"},
+        follow_redirects=True,
     )
-    assert response.status_code == 403
-    assert "onay" in response.get_json()["error"].lower()
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+
+    # Yetki/onay hata flash mesajı HTML sayfasında görüntülenmeli
+    assert "onay" in html.lower()
 
 
 def test_publish_failure_already_published_shows_flash_message(seeded, client):

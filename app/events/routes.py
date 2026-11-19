@@ -106,17 +106,15 @@ def _wants_html():
 @role_required("organizer")
 def publish(event_id):
     """Taslak etkinliği yayınlar (TG-174, PB-04; BR-1.5, BR-2.2, BR-2.3, BR-2.4)."""
-    denied = _forbidden_unless_approved_organizer(action="yayınlamak")
-    if denied:
-        return denied
-
+    is_html = _wants_html()
     db = get_db()
     try:
         ok, event, errors = services.publish_event(db, event_id, g.user_id)
     except services.EventPermissionError as exc:
+        if is_html:
+            flash(str(exc), "error")
+            return redirect(url_for("events.index"))
         return jsonify({"error": str(exc)}), 403
-
-    is_html = _wants_html()
 
     if not ok:
         if errors and errors[0] == "Etkinlik bulunamadı.":
