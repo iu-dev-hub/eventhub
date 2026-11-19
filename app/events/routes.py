@@ -1,4 +1,4 @@
-from flask import flash, g, jsonify, redirect, render_template, request, url_for
+from flask import flash, g, jsonify, redirect, render_template, request, session, url_for
 
 from app.accounts.security import login_required, role_required
 from app.core.db import get_db
@@ -7,14 +7,35 @@ from app.events import bp, services
 
 @bp.route("/")
 def index():
-    return render_template("events/index.html")
+    user_id = session.get("user_id")
+    user_role = session.get("user_role")
+    db = get_db()
+
+    query = (
+        "SELECT e.id, e.title, e.category, e.venue_id, e.start_time, e.end_time, "
+        "e.capacity, e.price, e.status, e.organizer_id, v.name AS venue_name "
+        "FROM events e "
+        "LEFT JOIN venues v ON e.venue_id = v.id "
+    )
+
+    if user_role == "organizer" and user_id:
+        rows = db.execute(
+            f"{query} WHERE e.organizer_id = ? ORDER BY e.id DESC", (user_id,)
+        ).fetchall()
+    elif user_role == "admin":
+        rows = db.execute(f"{query} ORDER BY e.id DESC").fetchall()
+    else:
+        rows = db.execute(f"{query} WHERE e.status = 'published' ORDER BY e.id DESC").fetchall()
+
+    events = [dict(r) for r in rows]
+    return render_template("events/index.html", events=events)
 
 
-def _forbidden_unless_approved_organizer():
+def _forbidden_unless_approved_organizer(action="oluşturmak"):
     """BR-1.5: yalnızca rol yetmez, yönetici onayı da gerekir. Yetkisizse 403 döner."""
     if not services.is_approved_organizer(g.user_id, get_db()):
         return jsonify(
-            {"error": "Etkinlik oluşturmak için yönetici onaylı organizatör olmalısınız."}
+            {"error": f"Etkinlik {action} için yönetici onaylı organizatör olmalısınız."}
         ), 403
     return None
 
@@ -69,6 +90,103 @@ def event_detail(event_id):
         # Taslağın varlığını sızdırmamak için 404 döndürülür.
         return jsonify({"error": "Etkinlik bulunamadı."}), 404
     return jsonify(event)
+
+
+@bp.route("/<int:event_id>/publish", methods=["POST"])
+@role_required("organizer")
+def publish(event_id):
+    """Taslak etkinliği yayınlar (TG-174, TG-175, PB-04; BR-1.5, BR-2.2, BR-2.3, BR-2.4)."""
+    is_ui_request = (
+        request.headers.get("Accept", "").find("text/html") != -1
+        or bool(request.form)
+        or not request.is_json
+    )
+
+    denied = _forbidden_unless_approved_organizer(action="yayınlamak")
+    if denied:
+        if is_ui_request:
+            flash("Etkinlik yayınlamak için yönetici onaylı organizatör olmalısınız.", "error")
+            return redirect(url_for("events.index"))
+        return denied
+
+    db = get_db()
+    event = services.get_event(db, event_id)
+    if event is None:
+        if is_ui_request:
+            flash("Etkinlik bulunamadı.", "error")
+            return redirect(url_for("events.index"))
+        return jsonify({"error": "Etkinlik bulunamadı."}), 404
+
+    if event["organizer_id"] != g.user_id:
+        msg = "Etkinliği yayınlamak için yönetici onaylı etkinlik sahibi organizatör olmalısınız."
+        if is_ui_request:
+            flash(msg, "error")
+            return redirect(url_for("events.index"))
+        return jsonify({"error": msg}), 403
+
+    # İş kuralları kontrolleri (BR-2.2, BR-2.3, BR-2.4)
+    validation_errors = []
+    if not str(event.get("title") or "").strip():
+        validation_errors.append("Etkinlik başlığı zorunludur.")
+    if not str(event.get("category") or "").strip():
+        validation_errors.append("Etkinlik kategorisi zorunludur.")
+
+    venue = db.execute(
+        "SELECT id, name, capacity FROM venues WHERE id = ?", (event["venue_id"],)
+    ).fetchone()
+    if venue and event["capacity"] > venue["capacity"]:
+        v_cap = venue["capacity"]
+        validation_errors.append(
+            f"Etkinlik kapasitesi ({event['capacity']}), salon kapasitesini ({v_cap}) aşamaz."
+        )
+
+    start_dt = services._parse_form_datetime(event["start_time"])
+    end_dt = services._parse_form_datetime(event["end_time"])
+    if start_dt and end_dt:
+        conflicts = db.execute(
+            "SELECT id, title, start_time, end_time FROM events "
+            "WHERE venue_id = ? AND status = 'published' AND id != ?",
+            (event["venue_id"], event_id),
+        ).fetchall()
+        for other in conflicts:
+            o_start = services._parse_form_datetime(other["start_time"])
+            o_end = services._parse_form_datetime(other["end_time"])
+            if o_start and o_end and start_dt < o_end and end_dt > o_start:
+                validation_errors.append(
+                    "Aynı salonda zamanı çakışan başka bir etkinlik bulunmaktadır "
+                    f"({other['title']})."
+                )
+                break
+
+    if validation_errors:
+        if is_ui_request:
+            for err in validation_errors:
+                flash(err, "error")
+            return redirect(url_for("events.index"))
+        status = 409 if any("çakışan" in e.lower() for e in validation_errors) else 400
+        return jsonify({"error": validation_errors[0], "errors": validation_errors}), status
+
+    try:
+        ok, published_event, errors = services.publish_event(db, event_id, organizer_id=g.user_id)
+    except services.EventPermissionError as exc:
+        if is_ui_request:
+            flash(str(exc), "error")
+            return redirect(url_for("events.index"))
+        return jsonify({"error": str(exc)}), 403
+
+    if not ok:
+        if is_ui_request:
+            for err in errors:
+                flash(err, "error")
+            return redirect(url_for("events.index"))
+        status_code = 409 if any("taslak" in e.lower() for e in errors) else 400
+        return jsonify({"error": errors[0], "errors": errors}), status_code
+
+    msg = f"Etkinlik başarıyla yayınlandı. (Etkinlik No: {published_event['id']})"
+    flash(msg, "success")
+    if is_ui_request:
+        return redirect(url_for("events.index"))
+    return jsonify({"message": msg, "event": published_event}), 200
 
 
 @bp.route("/venues", methods=["GET"])
