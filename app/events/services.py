@@ -283,3 +283,41 @@ def list_events_by_organizer(db, organizer_id):
         (organizer_id,),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def publish_event(db, event_id):
+    """TG-171: Taslak etkinliği yayınlar, durumu veritabanına kalıcı kaydeder."""
+
+    # Etkinlik kimliği pozitif tam sayı olmalı (bool da geçersiz).
+    if isinstance(event_id, bool) or not isinstance(event_id, int) or event_id < 1:
+        return False, None, ["Geçersiz etkinlik kimliği."]
+
+    try:
+        # Yalnızca taslak durumundaki etkinliği güncelle.
+        cursor = db.execute(
+            """
+            UPDATE events
+            SET status = 'published'
+            WHERE id = ? AND status = 'draft'
+            """,
+            (event_id,),
+        )
+
+        if cursor.rowcount == 0:
+            # Başarısız UPDATE'in başlattığı işlemi temizle.
+            db.rollback()
+            event = get_event(db, event_id)
+            if event is None:
+                return False, None, ["Etkinlik bulunamadı."]
+            return False, None, ["Yalnızca taslak etkinlikler yayınlanabilir."]
+
+        # Durum değişikliğini kalıcı hale getir.
+        db.commit()
+
+        # Veritabanından yeniden okuyarak güncel bilgiyi döndür.
+        event = get_event(db, event_id)
+        return True, event, []
+
+    except sqlite3.Error:
+        db.rollback()
+        return False, None, ["Etkinlik yayınlanırken veritabanı hatası oluştu."]
