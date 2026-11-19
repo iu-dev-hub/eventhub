@@ -319,6 +319,20 @@
   background: #f1f5f9;
 }
 
+.form-back-link {
+  margin-top: 1rem;
+}
+
+.account-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.account-form-actions .btn {
+  width: auto;
+}
+
 .btn-outline {
   background: transparent;
   color: var(--primary-color);
