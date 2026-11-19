@@ -116,10 +116,11 @@
           </small>
         </div>
 
-        <div style="margin-top: 1.75rem;">
-          <button type="submit" id="profile-submit-btn" class="btn btn-primary" style="width: auto; min-width: 180px;">
+        <div class="account-form-actions" style="margin-top: 1.75rem;">
+          <button type="submit" id="profile-submit-btn" class="btn btn-primary" style="min-width: 180px;">
             Değişiklikleri Kaydet
           </button>
+          <a href="{{ url_for('accounts.index') }}" class="btn btn-secondary">İptal</a>
         </div>
       </form>
     </div>
