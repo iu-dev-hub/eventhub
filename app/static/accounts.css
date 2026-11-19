@@ -22,6 +22,25 @@
   --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
 }
 
+/* Accounts Home */
+.account-home-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  max-width: 42rem;
+  margin-top: 1.25rem;
+}
+
+.account-home-actions .btn {
+  min-height: 44px;
+  text-align: center;
+}
+
+.account-home-actions .btn:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 3px;
+}
+
 /* Auth Pages (Login & Register Dual-Pane) */
 .auth-container {
   display: grid;
@@ -298,6 +317,20 @@
 
 .btn-secondary:hover {
   background: #f1f5f9;
+}
+
+.form-back-link {
+  margin-top: 1rem;
+}
+
+.account-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.account-form-actions .btn {
+  width: auto;
 }
 
 .btn-outline {
@@ -650,7 +683,48 @@
   border-bottom: 1px solid var(--border-color);
 }
 
+.profile-identity {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.profile-identity h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.4rem;
+}
+
+.profile-identity p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.profile-student-status {
+  margin: 0.75rem 0 0;
+  font-size: 0.9rem;
+}
+
+.profile-student-status dt {
+  font-weight: 600;
+}
+
+.profile-student-status dd {
+  margin: 0;
+}
+
+.student-badge {
+  display: inline-block;
+  margin: 0.25rem 0;
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  background: var(--accent-light);
+  color: #1d4ed8;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 .avatar-circle {
+  flex-shrink: 0;
   width: 80px;
   height: 80px;
   border-radius: 50%;
@@ -846,6 +920,10 @@
 
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
+  .account-home-actions {
+    grid-template-columns: 1fr;
+  }
+
   .auth-container {
     grid-template-columns: 1fr;
     margin: 1rem auto;
@@ -865,6 +943,17 @@
 
   .dashboard-layout {
     grid-template-columns: 1fr;
+  }
+
+  .profile-avatar-section {
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .avatar-circle {
+    width: 48px;
+    height: 48px;
+    font-size: 1.25rem;
   }
 
   .sidebar {
