@@ -71,6 +71,16 @@ def event_detail(event_id):
     return jsonify(event)
 
 
+def _wants_html():
+    """İsteğin HTML yanıtı mı yoksa JSON yanıtı mı tercih ettiğini belirler."""
+    accept = request.headers.get("Accept", "")
+    if "application/json" in accept:
+        return False
+    if "text/html" in accept:
+        return True
+    return request.accept_mimetypes.best_match(["application/json", "text/html"]) == "text/html"
+
+
 @bp.route("/<int:event_id>/publish", methods=["POST"])
 @role_required("organizer")
 def publish(event_id):
@@ -85,8 +95,13 @@ def publish(event_id):
     except services.EventPermissionError as exc:
         return jsonify({"error": str(exc)}), 403
 
+    is_html = _wants_html()
+
     if not ok:
         if errors and errors[0] == "Etkinlik bulunamadı.":
+            if is_html:
+                flash(errors[0], "error")
+                return redirect(url_for("events.index"))
             return jsonify({"error": errors[0], "errors": errors}), 404
         status_code = (
             409
@@ -99,7 +114,7 @@ def publish(event_id):
             )
             else 400
         )
-        if request.headers.get("Accept") == "text/html":
+        if is_html:
             for err in errors:
                 flash(err, "error")
             return redirect(
@@ -111,7 +126,7 @@ def publish(event_id):
 
     msg = f"Etkinlik başarıyla yayınlandı. (Etkinlik No: {event['id']})"
     flash(msg, "success")
-    if request.headers.get("Accept") == "text/html":
+    if is_html:
         return redirect(url_for("events.event_detail", event_id=event_id))
     return jsonify({"message": msg, "event": event}), 200
 

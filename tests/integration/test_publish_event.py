@@ -40,7 +40,9 @@ def _insert_users(db):
 def seeded_db(app):
     with app.app_context():
         db = get_db()
-        db.execute("ALTER TABLE users ADD COLUMN organizer_approved BOOLEAN NOT NULL DEFAULT 0")
+        columns = {row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()}
+        if "organizer_approved" not in columns:
+            db.execute("ALTER TABLE users ADD COLUMN organizer_approved INTEGER NOT NULL DEFAULT 0")
         db.execute(
             "INSERT INTO venues (id, name, address, capacity) VALUES (1, 'Ana Salon', 'Adres', 100)"
         )
@@ -212,3 +214,38 @@ def test_publish_time_conflict_html_redirect_and_flash(seeded_db, client):
         flashes = sess.get("_flashes", [])
         conflict_msg = "Aynı salonda bu saatlerde yayınlanmış başka bir etkinlik var."
         assert any(conflict_msg in f[1] for f in flashes)
+
+
+def test_publish_browser_multi_accept_header_html_flow(seeded_db, client):
+    """Çoklu Accept başlığı ile gelen istekte HTML yönlendirme ve flash mesajı üretilir."""
+    login(client, ORGANIZER, "organizer")
+    multi_accept = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+    response = client.post(
+        "/events/1/publish",
+        headers={"Accept": multi_accept},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+
+    with client.session_transaction() as sess:
+        flashes = sess.get("_flashes", [])
+        assert any("başarıyla yayınlandı" in f[1] for f in flashes)
+
+
+def test_publish_nonexistent_event_html_redirect_and_flash(seeded_db, client):
+    """Var olmayan etkinlikte HTML isteği flash mesajı ekler ve events.index'e yönlendirir."""
+    login(client, ORGANIZER, "organizer")
+    response = client.post(
+        "/events/9999/publish",
+        headers={"Accept": "text/html,application/xhtml+xml,*/*"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    assert response.headers["Location"] == "/events/"
+
+    with client.session_transaction() as sess:
+        flashes = sess.get("_flashes", [])
+        assert any("Etkinlik bulunamadı." in f[1] for f in flashes)
+
+    page = client.get("/events/")
+    assert "Etkinlik bulunamadı." in page.get_data(as_text=True)

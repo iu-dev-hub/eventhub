@@ -10,7 +10,9 @@ from app.events.services import EventPermissionError, get_event, publish_event
 def db(app):
     with app.app_context():
         db = get_db()
-        db.execute("ALTER TABLE users ADD COLUMN organizer_approved BOOLEAN NOT NULL DEFAULT 0")
+        columns = {row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()}
+        if "organizer_approved" not in columns:
+            db.execute("ALTER TABLE users ADD COLUMN organizer_approved INTEGER NOT NULL DEFAULT 0")
         db.execute(
             "INSERT INTO venues (id, name, address, capacity) "
             "VALUES (1, 'Büyük Salon', 'Adres', 100)"
