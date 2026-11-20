@@ -3,13 +3,68 @@
 {% block title %}Etkinlikler{% endblock %}
 
 {% block content %}
-<h1>Etkinlikler</h1>
-<p>Events modülünün ana sayfasına hoş geldiniz.</p>
+<div style="background-color: #F7F8FC; padding: 40px 20px; min-height: 80vh;">
+    <div style="display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto 30px auto; flex-wrap: wrap; gap: 16px;">
+        <h1 style="color: #172554; margin: 0;">Etkinlikler</h1>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <a href="{{ url_for('events.create') }}" style="display: inline-block; padding: 10px 20px; background-color: #2563EB; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                + Yeni Etkinlik Oluştur
+            </a>
+            <a href="{{ url_for('events.venues_list_ui') }}" style="display: inline-block; padding: 10px 20px; background-color: #2B3A67; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                Salonları Yönet
+            </a>
+        </div>
+    </div>
 
-<!-- Yeni eklenen Salonlar yönlendirme butonu -->
-<div style="margin-top: 20px;">
-    <a href="{{ url_for('events.venues_list_ui') }}" style="display: inline-block; padding: 10px 20px; background-color: #2B3A67; color: #FFFFFF; text-decoration: none; border-radius: 12px; font-weight: bold;">
-        Salonları Yönet
-    </a>
+    <div style="max-width: 1200px; margin: 0 auto;">
+        {% if events %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;">
+            {% for event in events %}
+            <div class="event-card" style="background-color: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 16px; padding: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 8px;">
+                        <h3 style="color: #172554; margin: 0; font-size: 20px; font-weight: 700;">{{ event.title or 'İsimsiz Etkinlik' }}</h3>
+                        {% if event.status == 'draft' %}
+                        <span class="badge badge-draft status-badge status-draft" style="background-color: #FEF3C7; color: #92400E; padding: 4px 10px; border-radius: 9999px; font-weight: 600; font-size: 13px; white-space: nowrap;">
+                            Taslak
+                        </span>
+                        {% elif event.status == 'published' %}
+                        <span class="badge badge-published status-badge status-published" style="background-color: #D1FAE5; color: #065F46; padding: 4px 10px; border-radius: 9999px; font-weight: 600; font-size: 13px; white-space: nowrap;">
+                            Yayında
+                        </span>
+                        {% else %}
+                        <span class="badge status-badge" style="background-color: #E2E8F0; color: #475569; padding: 4px 10px; border-radius: 9999px; font-weight: 600; font-size: 13px;">
+                            {{ event.status }}
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <p style="color: #64748B; margin: 0 0 10px 0; font-size: 14px;"><strong>Kategori:</strong> {{ event.category }}</p>
+                    <p style="color: #64748B; margin: 0 0 10px 0; font-size: 14px;"><strong>Salon:</strong> {{ event.venue_name or event.venue_id }}</p>
+                    <p style="color: #64748B; margin: 0 0 10px 0; font-size: 14px;"><strong>Tarih:</strong> {{ event.start_time }} - {{ event.end_time }}</p>
+                    <p style="color: #64748B; margin: 0 0 10px 0; font-size: 14px;">
+                        <strong>Kapasite:</strong> {{ event.capacity }} | 
+                        <strong>Fiyat:</strong> {{ 'Ücretsiz' if event.price == 0 else (event.price ~ ' TL') }}
+                    </p>
+                </div>
+
+                <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #F1F5F9; display: flex; justify-content: flex-end; align-items: center;">
+                    {% if event.status == 'draft' and user_role == 'organizer' and event.organizer_id == current_user_id %}
+                    <form action="{{ url_for('events.publish', event_id=event.id) }}" method="post" style="margin: 0;">
+                        <button type="submit" class="btn btn-publish" style="background-color: #10B981; color: #FFFFFF; border: none; padding: 8px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;">
+                            Yayınla
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 50px; background-color: #FFFFFF; border-radius: 16px; border: 1px dashed #E2E8F0;">
+            <p style="color: #64748B; font-size: 16px; margin: 0;">Henüz listelenecek bir etkinlik bulunmamaktadır.</p>
+        </div>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}
