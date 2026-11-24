@@ -104,11 +104,11 @@ Bu imzalar ilgili görev başlayınca kesinleşir; değişirse bu bölüm günce
 
 ### 2.4 Etkinlik verisi (`events`) — BR-2.2, BR-2.3
 
-> **Durum:** `events` tablosu henüz `schema.sql` içinde **yoktur**. Etkinlik oluşturma
-> şu an yalnızca form doğrulamasıdır (`validate_event_creation`; kayıt yapılmaz). Aşağıdaki
-> alanlar mevcut form/doğrulama alanlarından, Tickets'in beklentisinden ve Sprint 3'te
-> taslak etkinlik kaydedilecek olmasından türetilmiş **önerilen** yapıdır. `status` ve
-> `organizer_id` **öneridir**; ilgili ekiplerle kesinleşene kadar **açık karardır** (bkz. 2.6).
+> **Durum (TG-121):** `events` tablosu `app/core/schema.sql` içinde tanımlıdır (TG-117) ve
+> taslak etkinlikler `create_draft_event` servisiyle kaydedilir (TG-118; bkz. 2.8).
+> `status` değerleri şemada `draft` ve `published` ile sınırlıdır; `cancelled` henüz yoktur.
+> Aşağıdaki tablodaki "Öneri"/"Açık karar" ifadeleri ilgili ekiplerle kesinleşene kadar
+> geçerlidir (bkz. 2.6).
 
 | Alan | Tür | Kısıt | Durum | Açıklama |
 |---|---|---|---|---|
@@ -177,6 +177,53 @@ kodunun incelenmesiyle bulunan bilgiyi belirtir; ekibin yazılı onayı anlamın
 
 JSON hata yanıtları `{"error": "<mesaj>"}` biçimindedir (Accounts ile uyumlu); birden
 fazla doğrulama hatası varsa ek olarak `"errors": ["..."]` listesi döner.
+
+---
+
+### 2.8 Taslak etkinlik oluşturma — `GET/POST /events/create` ve `GET /events/<id>` (TG-118, TG-119, TG-121)
+
+Sahibi team-events. Form: `app/templates/events/create.html` (TG-119). Servis:
+`app.events.services` (TG-118). PB-08; BR-1.5, BR-2.2, BR-2.3.
+
+**Yetki (BR-1.5):** `@role_required("organizer")` oturum rolünü denetler (yoksa 401, rol uymuyorsa
+403). Ardından `services.is_approved_organizer(g.user_id, db)` çağrılır; onaylı değilse 403
+`{"error": "Etkinlik oluşturmak için yönetici onaylı organizatör olmalısınız."}`.
+`admin` ve `participant` etkinlik oluşturamaz. `organizer_id` formdan değil oturumdan
+(`g.user_id`) alınır; formdaki `organizer_id` alanı yok sayılır.
+
+> **Açık nokta (Accounts):** Kalıcı organizatör onay mekanizması (`users.organizer_approved`
+> veya Accounts servisi) henüz yoktur. `is_approved_organizer`, `app.accounts.services`
+> içinde aynı adlı bir fonksiyon tanımlıysa ona delege eder; yoksa ve sütun şemada
+> bulunmuyorsa **her zaman `False`** döner (güvenli varsayılan: erişim kapalı). Accounts
+> mekanizmayı eklediğinde Events kodu değişmeden çalışır.
+
+**Form alanları (`POST /events/create`, `application/x-www-form-urlencoded`):**
+
+| Alan | Tür | Açıklama |
+|---|---|---|
+| `title` | str | Başlık (zorunlu) |
+| `category` | str | Kategori (zorunlu) |
+| `venue_id` | int (metin) | `venues.id`; formdaki salon listesi `venues` tablosundan gelir |
+| `start_time`, `end_time` | ISO 8601 (`2026-12-01T10:00`) | `end_time > start_time` olmalı |
+| `capacity` | int | `>= 1` ve seçilen salonun `venues.capacity` değerini aşamaz (BR-2.3) |
+| `price` | sayı | `>= 0`; `0` = ücretsiz |
+
+**Servis:** `create_draft_event(db, organizer_id, title, category, venue, start_time, end_time,
+capacity, price, *, venue_id=None)` → `(ok, event | None, errors)`. `venue_id` verilirse salon
+`venues.id` ile, verilmezse `venue` (salon adı) ile bulunur. Kayıt her zaman `status='draft'`
+olur; onaysız kullanıcıda `EventPermissionError` fırlatılır; veritabanı hatasında `rollback`
+yapılır.
+
+| Durum | Sonuç |
+|---|---|
+| Başarılı | Kayıt `draft` olarak yazılır; 302 → `/events/`, flash (success): `Taslak etkinlik kaydedildi. (Etkinlik No: <id>)` |
+| Doğrulama hatası (eksik alan, sayısal olmayan değer, tarih, kapasite, bilinmeyen salon) | Kayıt yazılmaz; 302 → `/events/create`, her hata için flash (error) |
+| Oturum yok | 401 `{"error": "Oturum açılmamış."}` |
+| Rol `organizer` değil veya onaylı değil | 403 `{"error": "..."}` ve kayıt yazılmaz |
+
+`GET /events/<id>` (`@login_required`): etkinliği 2.4 alanlarıyla JSON döndürür. `draft` etkinlik
+yalnızca sahibine (`organizer_id == g.user_id`) ve `admin`'e görünür; diğerleri 404 alır
+(taslağın varlığı sızdırılmaz). Etkinlik yoksa 404 `{"error": "Etkinlik bulunamadı."}`.
 
 ---
 

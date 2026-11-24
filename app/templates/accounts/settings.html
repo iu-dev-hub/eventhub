@@ -86,9 +86,12 @@
           </div>
         </div>
 
-        <button type="submit" id="change-pwd-btn" class="btn btn-primary" style="width: auto; min-width: 170px;">
-          Şifreyi Güncelle
-        </button>
+        <div class="account-form-actions">
+          <button type="submit" id="change-pwd-btn" class="btn btn-primary" style="min-width: 170px;">
+            Şifreyi Güncelle
+          </button>
+          <a href="{{ url_for('accounts.index') }}" class="btn btn-secondary">İptal</a>
+        </div>
       </form>
     </div>
 
@@ -117,9 +120,12 @@
           </label>
         </div>
 
-        <button type="submit" id="pref-submit-btn" class="btn btn-secondary" style="width: auto;">
-          Tercihleri Kaydet
-        </button>
+        <div class="account-form-actions">
+          <button type="submit" id="pref-submit-btn" class="btn btn-secondary">
+            Tercihleri Kaydet
+          </button>
+          <a href="{{ url_for('accounts.index') }}" class="btn btn-secondary">İptal</a>
+        </div>
       </form>
     </div>
   </div>
