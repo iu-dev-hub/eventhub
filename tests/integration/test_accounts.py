@@ -3,6 +3,8 @@
 Tests full request-response lifecycle with Flask test client and isolated SQLite database.
 """
 
+import re
+
 import pytest
 
 from app.accounts.services import (
@@ -29,6 +31,51 @@ def test_accounts_index_html(client):
     html = response.get_data(as_text=True)
     assert "Hesap Yönetimi" in html
     assert "EventHub" in html
+
+
+@pytest.mark.parametrize(
+    ("signed_in", "expected_links"),
+    [
+        (
+            False,
+            [
+                ("/accounts/login", "Giriş Yap"),
+                ("/accounts/register", "Kayıt Ol"),
+                ("/accounts/forgot-password", "Şifremi Unuttum"),
+            ],
+        ),
+        (
+            True,
+            [
+                ("/accounts/profile", "Profilim"),
+                ("/accounts/settings", "Ayarlar"),
+                ("/accounts/change-password", "Şifre Değiştir"),
+            ],
+        ),
+    ],
+)
+def test_accounts_index_shows_navigation_for_session(client, signed_in, expected_links):
+    """TG-166: Hesap ana sayfası oturuma uygun form bağlantılarını göstermelidir."""
+    if signed_in:
+        credentials = {"email": "account-home@example.com", "password": "Password123"}
+        registration = client.post(
+            "/accounts/register", json={**credentials, "terms_accepted": True}
+        )
+        assert registration.status_code == 201
+        assert client.post("/accounts/login", json=credentials).status_code == 200
+
+    headers = {"Accept": "text/html"}
+    response = client.get("/accounts/", headers=headers)
+    assert response.status_code == 200
+    links = re.findall(
+        r'<a\b[^>]*\bhref="(/accounts/[^"]+)"[^>]*>\s*([^<]+?)\s*</a>',
+        response.get_data(as_text=True),
+    )
+    assert links == expected_links
+    for path, _ in links:
+        destination = client.get(path, headers=headers)
+        assert destination.status_code == 200
+        assert destination.mimetype == "text/html"
 
 
 def test_register_user_success(client, app):
@@ -629,6 +676,43 @@ def test_auth_screens_render_templates(client):
     assert "Hemen kayıt olun!" in res_reg.get_data(as_text=True)
 
 
+@pytest.mark.parametrize(
+    ("page", "label", "target", "signed_in", "link_count"),
+    [
+        ("/login", "Hesaplara Dön", "/accounts/", False, 1),
+        ("/register", "Hesaplara Dön", "/accounts/", False, 1),
+        ("/forgot-password", "Giriş Ekranına Dön", "/accounts/login", False, 1),
+        ("/reset-password/demo-token", "Giriş Ekranına Dön", "/accounts/login", False, 1),
+        ("/change-password", "Panele Geri Dön", "/accounts/dashboard", True, 1),
+        ("/settings", "İptal", "/accounts/", True, 2),
+        ("/profile", "İptal", "/accounts/", True, 1),
+    ],
+)
+def test_account_form_navigation(client, page, label, target, signed_in, link_count):
+    """TG-165: Geri dönüş ve iptal bağlantıları GET ile erişilebilir olmalıdır."""
+    if signed_in:
+        credentials = {"email": "navigation@example.com", "password": "Password123"}
+        registration = client.post(
+            "/accounts/register", json={**credentials, "terms_accepted": True}
+        )
+        assert registration.status_code == 201
+        assert client.post("/accounts/login", json=credentials).status_code == 200
+
+    headers = {"Accept": "text/html"}
+    response = client.get(f"/accounts{page}", headers=headers)
+    assert response.status_code == 200
+
+    links = re.findall(
+        rf'<a\s+href="([^"]+)"[^>]*>\s*{re.escape(label)}\s*</a>',
+        response.get_data(as_text=True),
+    )
+    assert links == [target] * link_count
+
+    destination = client.get(target, headers=headers)
+    assert destination.status_code == 200
+    assert destination.mimetype == "text/html"
+
+
 def test_logout_confirm_and_post_flow(client):
     """TG-69, TG-75: Logout GET onay şablonu sunmalı, POST oturumu temizlemelidir."""
     # Giriş yap
@@ -736,6 +820,55 @@ def test_profile_and_edit_flow(client):
         json={"first_name": "", "last_name": "Kaya"},
     )
     assert res_bad.status_code == 400
+
+
+@pytest.mark.parametrize(
+    ("role", "role_label", "is_student", "student_number"),
+    [
+        ("participant", "Katılımcı", True, "120501099"),
+        ("participant", "Katılımcı", True, None),
+        ("organizer", "Organizatör", False, None),
+        ("admin", "Yönetici", False, None),
+    ],
+)
+def test_profile_displays_account_details(client, role, role_label, is_student, student_number):
+    """TG-167: Profil, hesap bilgilerini ve kayıtlı öğrenci beyanını gösterir."""
+    credentials = {"email": "deniz.kaya@example.com", "password": "Password123"}
+    registration = client.post(
+        "/accounts/register",
+        json={
+            **credentials,
+            "terms_accepted": True,
+            "first_name": "Deniz",
+            "last_name": "Kaya",
+            "role": role,
+            "is_student": is_student,
+            "student_number": student_number,
+        },
+    )
+    assert registration.status_code == 201
+    assert client.post("/accounts/login", json=credentials).status_code == 200
+
+    response = client.get("/accounts/profile", headers={"Accept": "text/html"})
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "<h1>Deniz Kaya</h1>" in html
+    assert f"<p>{credentials['email']}</p>" in html
+    assert f'value="{role_label}"' in html
+    assert "<dt>Öğrenci statüsü</dt>" in html
+    assert ('class="student-badge">Öğrenci Hesabı<' in html) == is_student
+    assert ("Kayıt beyanı" in html) == is_student
+    assert ("Öğrenci beyanı yok" in html) == (not is_student)
+    assert ("Öğrenci no." in html) == (student_number is not None)
+    if student_number is not None:
+        assert f"Öğrenci no. {student_number}" in html
+
+
+def test_profile_requires_login_for_html_requests(client):
+    """TG-167: Misafirin profil isteği mevcut 401 yanıtını alır."""
+    response = client.get("/accounts/profile", headers={"Accept": "text/html"})
+    assert response.status_code == 401
+    assert response.get_json() == {"error": "Oturum açılmamış."}
 
 
 def test_settings_and_change_password_endpoint(client):

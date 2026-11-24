@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "name": "Konferans Salonu A",
+    "address": "İTÜ Ayazağa Kampüsü, Maslak Mahallesi, No:123, Istanbul",
+    "capacity": 500
+  },
+  {
+    "id": 2,
+    "name": "Spor Salonu B",
+    "address": "İTÜ Ayazağa Kampüsü, Maslak Mahallesi, No:124, Istanbul",
+    "capacity": 300
+  },
+  {
+    "id": 3,
+    "name": "Kültür Merkezi",
+    "address": "Kültür Parkı, Cevizli Mahallesi, No:45, Istanbul",
+    "capacity": 200
+  }
+]
