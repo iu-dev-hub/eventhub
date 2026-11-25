@@ -11,13 +11,31 @@ from mobile_client.services.event_service import (
     search_events,
     sort_events_by_nearest_date,
 )
+from mobile_client.services.participation_service import (
+    EventDetail,
+    ParticipationService,
+    ReservationResult,
+    calculate_price_summary,
+    dict_to_seat,
+    dict_to_ticket,
+    is_event_sales_closed,
+    is_seat_lock_expired,
+)
 
 __all__ = [
     "ALL_CATEGORIES_LABEL",
+    "EventDetail",
     "EventService",
+    "ParticipationService",
+    "ReservationResult",
+    "calculate_price_summary",
     "dict_to_event",
+    "dict_to_seat",
+    "dict_to_ticket",
     "filter_and_sort_events",
     "filter_events_by_category",
+    "is_event_sales_closed",
+    "is_seat_lock_expired",
     "normalize_search_text",
     "parse_iso_datetime",
     "search_events",
