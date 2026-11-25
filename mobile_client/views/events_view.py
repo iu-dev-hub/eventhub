@@ -35,11 +35,11 @@ def build_events_view(
     category_row = ft.Row(spacing=8, scroll=ft.ScrollMode.AUTO)
 
     def _safe_update(control: ft.Control) -> None:
-        if getattr(control, "page", None) is not None:
-            try:
+        try:
+            if control.page is not None:
                 control.update()
-            except Exception:
-                pass
+        except (RuntimeError, AttributeError):
+            pass
 
     def _render_events() -> List[Event]:
         filtered_events = service.get_events(
