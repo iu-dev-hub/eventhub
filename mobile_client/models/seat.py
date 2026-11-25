@@ -5,6 +5,6 @@ class Seat:
         self.seat_code = seat_code
         self.status = status
         self.locked_until = locked_until
-    
+
     def __str__(self):
         return f"Seat(seat_code='{self.seat_code}', status='{self.status}')"
