@@ -331,11 +331,14 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
     }
 
 
-def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
+def get_user_by_id(
+    user_id: int, *, include_organizer_approval: bool = False
+) -> Optional[Dict[str, Any]]:
     """Fetches user information by user ID.
 
     Args:
         user_id: The integer ID of the user.
+        include_organizer_approval: Profil/panel HTML gösterimi için onay alanını ekler.
 
     Returns:
         Dictionary containing user information or None if not found.
@@ -346,7 +349,7 @@ def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
     ensure_user_columns(db)
     query = (
         "SELECT id, first_name, last_name, email, role, is_student, "
-        "student_number, notify_email, avatar_url, created_at "
+        "student_number, notify_email, avatar_url, created_at, organizer_approved "
         "FROM users WHERE id = ? LIMIT 1"
     )
     row = db.execute(query, (user_id,)).fetchone()
@@ -355,6 +358,9 @@ def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
     res = dict(row)
     res["is_student"] = bool(res.get("is_student", False))
     res["notify_email"] = bool(res.get("notify_email", True))
+    organizer_approved = res.pop("organizer_approved")
+    if include_organizer_approval:
+        res["organizer_approved"] = organizer_approved == 1
     return res
 
 

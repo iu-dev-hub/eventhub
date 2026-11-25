@@ -1319,3 +1319,106 @@ def test_init_db_migrates_users_without_losing_related_data(app):
         db.commit()
         init_db()
         assert db.execute("SELECT organizer_approved FROM users").fetchone()[0] == 1
+
+
+@pytest.mark.parametrize("page", ["profile", "dashboard"])
+@pytest.mark.parametrize("role,approval", [
+    ("organizer", 0), ("organizer", 1),
+    ("participant", 0), ("participant", 1), ("admin", 0), ("admin", 1),
+])
+def test_organizer_status_uses_current_database_user(client, app, page, role, approval):
+    """TG-180: İki ekran da göstergeyi güncel kayıtlı role ve onaya göre gösterir."""
+    with app.app_context():
+        db = get_db()
+        db.execute(
+            "INSERT INTO users (id, first_name, email, password_hash, role, organizer_approved) "
+            "VALUES (1, 'Deniz', 'deniz@example.com', 'hash', ?, ?)", (role, approval),
+        )
+        db.commit()
+    with client.session_transaction() as session:
+        session["user_id"] = 1
+        # Oturumdaki kasıtlı eski rol ve onay değerleri gösterimi belirlememeli.
+        session["user_role"] = "participant" if role == "organizer" else "organizer"
+        session["organizer_approved"] = not bool(approval)
+    response = client.get(f"/accounts/{page}", headers={"Accept": "text/html"})
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert ("Organizatör onayı" in html) == (role == "organizer")
+    assert ("<strong>Onay Bekliyor</strong>" in html) == (role == "organizer" and approval == 0)
+    assert ("<strong>Onaylandı</strong>" in html) == (role == "organizer" and approval == 1)
+
+
+@pytest.mark.parametrize("page", ["profile", "dashboard"])
+def test_organizer_status_refreshes_without_login(client, app, page):
+    with app.app_context():
+        user = register_user("pending@example.com", "Password123", role="organizer")
+    assert client.post(
+        "/accounts/login", json={"email": "pending@example.com", "password": "Password123"}
+    ).status_code == 200
+    assert "Onay Bekliyor" in client.get(f"/accounts/{page}").get_data(as_text=True)
+    with app.app_context():
+        db = get_db()
+        db.execute("UPDATE users SET organizer_approved=1 WHERE id=?", (user["id"],))
+        db.commit()
+    html = client.get(f"/accounts/{page}").get_data(as_text=True)
+    assert "<strong>Onaylandı</strong>" in html
+    assert "Onay Bekliyor" not in html
+
+
+@pytest.mark.parametrize("page", ["profile", "dashboard"])
+def test_organizer_status_pages_require_login(client, page):
+    response = client.get(f"/accounts/{page}", headers={"Accept": "text/html"})
+    assert response.status_code == 401
+    assert response.get_json() == {"error": "Oturum açılmamış."}
+
+
+def test_approval_field_json_compatibility(client):
+    credentials = {"email": "json-approval@example.com", "password": "Password123"}
+    registered = client.post("/accounts/register", json={**credentials, "role": "organizer"})
+    assert registered.status_code == 201
+    assert "organizer_approved" not in registered.get_json()["user"]
+    logged_in = client.post("/accounts/login", json=credentials)
+    assert logged_in.status_code == 200
+    assert "organizer_approved" not in logged_in.get_json()["user"]
+    assert "organizer_approved" not in client.get("/accounts/me").get_json()["user"]
+    for page in ("profile", "dashboard", "settings"):
+        response = client.get(f"/accounts/{page}", headers={"Accept": "application/json"})
+        assert response.status_code == 200
+        user = response.get_json()["user"]
+        assert user["email"] == credentials["email"]
+        assert "organizer_approved" not in user
+        assert "password_hash" not in user
+    edited = client.post(
+        "/accounts/profile/edit", json={"first_name": "Deniz", "last_name": "Kaya"}
+    )
+    assert edited.status_code == 200
+    assert "organizer_approved" not in edited.get_json()["user"]
+
+
+
+def test_profile_update_cannot_modify_any_organizer_approval(client, app):
+    """TG-180: İstemcinin hedef kimliği ve onay alanı güncelleme yetkisi veremez."""
+    credentials = {"email": "owner@example.com", "password": "Password123"}
+    owner = client.post("/accounts/register", json={**credentials, "role": "organizer"})
+    assert owner.status_code == 201
+    owner_id = owner.get_json()["user"]["id"]
+    with app.app_context():
+        other = register_user("other@example.com", "Password123", role="organizer")
+    assert client.post("/accounts/login", json=credentials).status_code == 200
+    response = client.post(
+        "/accounts/profile/edit",
+        json={
+            "first_name": "Deniz", "last_name": "Kaya", "organizer_approved": 1,
+            "user_id": other["id"], "id": other["id"], "role": "admin",
+        },
+    )
+    assert response.status_code == 200
+    with app.app_context():
+        rows = get_db().execute(
+            "SELECT id, first_name, role, organizer_approved FROM users ORDER BY id"
+        ).fetchall()
+        assert [row["id"] for row in rows] == [owner_id, other["id"]]
+        assert [row["organizer_approved"] for row in rows] == [0, 0]
+        assert [row["role"] for row in rows] == ["organizer", "organizer"]
+        assert rows[0]["first_name"] == "Deniz"
+        assert rows[1]["first_name"] == ""
