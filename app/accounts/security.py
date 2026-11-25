@@ -5,6 +5,7 @@ and access control decorators for authentication and authorization.
 """
 
 import functools
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, Tuple
 
@@ -103,6 +104,23 @@ class AccountLockoutTracker:
 
 # Global tracker singleton
 lockout_tracker = AccountLockoutTracker()
+
+
+def organizer_approval_csrf_token():
+    """TG-179: Onay formu için oturuma bağlı token üretir."""
+    if "organizer_approval_csrf" not in session:
+        session["organizer_approval_csrf"] = secrets.token_urlsafe(32)
+    return session["organizer_approval_csrf"]
+
+
+def valid_organizer_approval_csrf(token):
+    """TG-179: Tokenı sabit zamanlı karşılaştırmayla doğrular."""
+    expected = session.get("organizer_approval_csrf")
+    return (
+        isinstance(token, str)
+        and isinstance(expected, str)
+        and secrets.compare_digest(token.encode("utf-8"), expected.encode("utf-8"))
+    )
 
 
 def login_required(view_func):
