@@ -373,6 +373,57 @@ def test_price_calculation_decision_table_br_4_1_4_2_4_6():
     assert p4["final_total"] == 0.0
 
 
+def test_sales_closed_uses_current_time_when_now_not_given():
+    """BR-3.3: now verilmediğinde gerçek UTC saatine göre satış kapanışı kontrol edilir."""
+    past_event = Event(
+        id=1,
+        title="Geçmiş Etkinlik",
+        category="Eğitim",
+        venue_id=1,
+        start_time="2024-05-15T09:00:00Z",
+        end_time="2024-05-15T17:00:00Z",
+        capacity=100,
+        price=50.0,
+        status="published",
+        organizer_id=1,
+    )
+    future_event = Event(
+        id=2,
+        title="Gelecek Etkinlik",
+        category="Eğitim",
+        venue_id=1,
+        start_time="2099-01-01T10:00:00Z",
+        end_time="2099-01-01T12:00:00Z",
+        capacity=100,
+        price=50.0,
+        status="published",
+        organizer_id=1,
+    )
+
+    assert is_event_sales_closed(past_event) is True
+    assert is_event_sales_closed(future_event) is False
+
+
+def test_early_bird_uses_current_time_when_now_not_given():
+    """BR-4.1: now parametresi verilmediğinde erken kayıt indirimi gerçek saate göre uygulanır."""
+    future_event = Event(
+        id=1,
+        title="Gelecek Etkinlik",
+        category="Eğitim",
+        venue_id=1,
+        start_time="2099-01-01T10:00:00Z",
+        end_time="2099-01-01T12:00:00Z",
+        capacity=100,
+        price=100.0,
+        status="published",
+        organizer_id=1,
+    )
+
+    summary = calculate_price_summary(future_event, seat_count=1, is_student=False)
+    assert summary["is_early_bird"] is True
+    assert summary["final_total"] == 80.0
+
+
 def test_new_routes_normalize_properly():
     """/event-detail ve /payment rotaları normalize_route tarafından korunmalıdır."""
     assert normalize_route(ROUTE_EVENT_DETAIL) == ROUTE_EVENT_DETAIL
@@ -382,6 +433,7 @@ def test_new_routes_normalize_properly():
 def test_event_detail_and_payment_view_with_flet(mock_api_dir: Path):
     """Flet kuruluysa detay görünümü, koltuk seçimi ve ödeme ekranına yönlendirme doğrulanır."""
     pytest.importorskip("flet")
+    from mobile_client.core.theme import DEFAULT_THEME
     from mobile_client.views.event_detail_view import (
         build_event_detail_view,
         build_payment_view,
@@ -401,6 +453,12 @@ def test_event_detail_and_payment_view_with_flet(mock_api_dir: Path):
     matrix = view.data["seat_matrix"]
     matrix._toggle_seat("A2")
     assert view.data["selected_seats"] == ["A2"]
+
+    seat_containers = [
+        btn for row in matrix.content.controls[1].controls for btn in row.controls[1].controls
+    ]
+    a2_container = next(btn for btn in seat_containers if btn.content.value == "A2")
+    assert a2_container.bgcolor == DEFAULT_THEME.colors.primary
 
     res = view.data["trigger_purchase"]()
     assert res.success is True

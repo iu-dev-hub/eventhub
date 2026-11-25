@@ -46,11 +46,11 @@ def build_event_detail_view(
     )
 
     def _safe_update(control: ft.Control) -> None:
-        if getattr(control, "page", None) is not None:
-            try:
+        try:
+            if control.page is not None:
                 control.update()
-            except Exception:
-                pass
+        except (RuntimeError, AttributeError):
+            pass
 
     if detail is None:
         return ft.View(
@@ -91,6 +91,8 @@ def build_event_detail_view(
             selected_summary_text.value = f"Seçili koltuklar: {', '.join(selected_seats)}"
         else:
             selected_summary_text.value = "Seçili koltuk: Yok"
+        seat_matrix.content.controls[1] = seat_matrix._build_grid()
+        _safe_update(seat_matrix)
         _safe_update(selected_summary_text)
 
     seat_matrix = SeatMatrix(
@@ -123,7 +125,7 @@ def build_event_detail_view(
         _safe_update(feedback_text)
         return ok
 
-    purchase_button = ft.ElevatedButton(
+    purchase_button = ft.Button(
         "Satın Al",
         icon=ft.Icons.SHOPPING_CART_CHECKOUT,
         bgcolor=theme.colors.primary,

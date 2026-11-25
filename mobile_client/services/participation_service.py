@@ -112,8 +112,6 @@ def is_event_sales_closed(event: Event, now: Optional[datetime] = None) -> bool:
     """Bilet satışı etkinlik başlangıcından 1 saat (60 dk) önce kapanır (BR-3.3)."""
     if event.status != "published":
         return True
-    if now is None:
-        return False
     current = _ensure_utc(now)
     start_dt = parse_iso_datetime(event.start_time)
     if start_dt == datetime.max.replace(tzinfo=timezone.utc):
@@ -142,11 +140,10 @@ def calculate_price_summary(
         }
 
     is_early_bird = False
-    if now is not None:
-        current = _ensure_utc(now)
-        start_dt = parse_iso_datetime(event.start_time)
-        if start_dt != datetime.max.replace(tzinfo=timezone.utc):
-            is_early_bird = (start_dt - current) >= timedelta(days=EARLY_BIRD_DAYS_THRESHOLD)
+    current = _ensure_utc(now)
+    start_dt = parse_iso_datetime(event.start_time)
+    if start_dt != datetime.max.replace(tzinfo=timezone.utc):
+        is_early_bird = (start_dt - current) >= timedelta(days=EARLY_BIRD_DAYS_THRESHOLD)
 
     unit_price = base_unit
     if is_early_bird:
