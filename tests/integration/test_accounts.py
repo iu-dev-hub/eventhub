@@ -1254,3 +1254,68 @@ def test_preferences_invalid_error_handling(client, monkeypatch):
     assert res.status_code == 400
     assert "Simüle edilen hata" in res.get_json()["error"]
 
+
+
+@pytest.mark.parametrize("payload_type", ["json", "data"])
+def test_registration_cannot_self_approve_organizer(client, app, payload_type):
+    """TG-178: İstemcinin onay alanı kayıt sırasında yetki veremez."""
+    credentials = {"email": "new-organizer@example.com", "password": "Password123"}
+    response = client.post(
+        "/accounts/register",
+        **{payload_type: {**credentials, "role": "organizer", "organizer_approved": 1}},
+    )
+    assert response.status_code == 201
+    user_id = response.get_json()["user"]["id"]
+    with app.app_context():
+        from app.accounts.services import is_approved_organizer
+
+        db = get_db()
+        row = db.execute("SELECT organizer_approved FROM users WHERE id = ?", (user_id,)).fetchone()
+        assert row["organizer_approved"] == 0
+        assert is_approved_organizer(user_id) is False
+    assert client.post("/accounts/login", json=credentials).status_code == 200
+    assert client.get("/events/create").status_code == 403
+    response = client.post(
+        "/accounts/profile/edit",
+        json={"first_name": "Deniz", "last_name": "Kaya", "organizer_approved": 1},
+    )
+    assert response.status_code == 200
+    with app.app_context():
+        assert is_approved_organizer(user_id) is False
+        get_db().execute("UPDATE users SET organizer_approved = 1 WHERE id = ?", (user_id,))
+        get_db().commit()
+        assert is_approved_organizer(user_id) is True
+    assert client.get("/events/create").status_code == 200
+
+
+def test_init_db_migrates_users_without_losing_related_data(app):
+    """TG-178: init-db mevcut kullanıcıyı ve etkinliğini koruyarak sütunu ekler."""
+    from app.core.db import init_db
+
+    with app.app_context():
+        db = get_db()
+        db.execute("ALTER TABLE users DROP COLUMN organizer_approved")
+        db.execute(
+            "INSERT INTO users (id, email, password_hash, role, is_student, student_number) "
+            "VALUES (42, 'existing@example.com', 'original-hash', 'organizer', 1, '123')"
+        )
+        db.execute("INSERT INTO venues VALUES (1, 'Salon', 'Adres', 100)")
+        db.execute(
+            "INSERT INTO events (id, title, category, venue_id, start_time, end_time, "
+            "capacity, organizer_id) VALUES (1, 'Etkinlik', 'Eğitim', 1, "
+            "'2027-01-01T10:00', '2027-01-01T12:00', 50, 42)"
+        )
+        db.commit()
+        user_before = dict(db.execute("SELECT * FROM users").fetchone())
+        event_before = dict(db.execute("SELECT * FROM events").fetchone())
+        init_db()
+        init_db()
+        after = dict(db.execute("SELECT * FROM users").fetchone())
+        assert after.pop("organizer_approved") == 0
+        assert after == user_before
+        assert dict(db.execute("SELECT * FROM events").fetchone()) == event_before
+        assert not db.execute("PRAGMA foreign_key_check").fetchall()
+        db.execute("UPDATE users SET organizer_approved = 1 WHERE id = 42")
+        db.commit()
+        init_db()
+        assert db.execute("SELECT organizer_approved FROM users").fetchone()[0] == 1

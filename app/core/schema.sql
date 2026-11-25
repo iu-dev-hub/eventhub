@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS users (
     email          TEXT    NOT NULL UNIQUE,
     password_hash  TEXT    NOT NULL,
     role           TEXT    NOT NULL DEFAULT 'participant',
+    organizer_approved BOOLEAN NOT NULL DEFAULT 0,
     is_student     BOOLEAN NOT NULL DEFAULT 0,
     student_number TEXT    DEFAULT NULL,
     notify_email   BOOLEAN NOT NULL DEFAULT 1,

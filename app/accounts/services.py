@@ -114,19 +114,24 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 
 def ensure_user_columns(db) -> None:
-    """Ensures backwards compatibility if table was created in Sprint 1/2."""
+    """Eksik kullanıcı sütunlarını verileri ve çağıranın işlemini koruyarak ekler."""
+    columns = {
+        "first_name": "TEXT NOT NULL DEFAULT ''",
+        "last_name": "TEXT NOT NULL DEFAULT ''",
+        "is_student": "BOOLEAN NOT NULL DEFAULT 0",
+        "student_number": "TEXT DEFAULT NULL",
+        "notify_email": "BOOLEAN NOT NULL DEFAULT 1",
+        "avatar_url": "TEXT DEFAULT NULL",
+        "organizer_approved": "BOOLEAN NOT NULL DEFAULT 0",
+    }
+    db.execute("SAVEPOINT accounts_user_columns")
     try:
-        rows = db.execute("PRAGMA table_info(users)").fetchall()
-        cols = {row["name"] for row in rows}
-        if cols and "first_name" not in cols:
-            db.execute("ALTER TABLE users ADD COLUMN first_name TEXT NOT NULL DEFAULT ''")
-            db.execute("ALTER TABLE users ADD COLUMN last_name TEXT NOT NULL DEFAULT ''")
-            db.execute("ALTER TABLE users ADD COLUMN is_student BOOLEAN NOT NULL DEFAULT 0")
-            db.execute("ALTER TABLE users ADD COLUMN student_number TEXT DEFAULT NULL")
-            db.execute("ALTER TABLE users ADD COLUMN notify_email BOOLEAN NOT NULL DEFAULT 1")
-            db.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT DEFAULT NULL")
-            db.commit()
-
+        existing = {row["name"] for row in db.execute("PRAGMA table_info(users)")}
+        if not existing:
+            raise RuntimeError("Kullanıcı tablosu bulunamadı; önce veritabanını başlatın.")
+        for name, definition in columns.items():
+            if name not in existing:
+                db.execute(f"ALTER TABLE users ADD COLUMN {name} {definition}")
         db.execute(
             "CREATE TABLE IF NOT EXISTS password_resets ("
             "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, "
@@ -135,9 +140,31 @@ def ensure_user_columns(db) -> None:
             "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, "
             "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)"
         )
-        db.commit()
     except Exception:
-        pass
+        db.execute("ROLLBACK TO SAVEPOINT accounts_user_columns")
+        db.execute("RELEASE SAVEPOINT accounts_user_columns")
+        raise
+    db.execute("RELEASE SAVEPOINT accounts_user_columns")
+
+
+def is_approved_organizer(user_id, db=None) -> bool:
+    """BR-1.5 / TG-178: Kayıtlı rol ve onayı verilen bağlantıda salt okunur denetler."""
+    if (
+        isinstance(user_id, bool)
+        or not isinstance(user_id, int)
+        or user_id < 1
+        or user_id > 2**63 - 1
+    ):
+        return False
+    if db is None:
+        db = get_db()
+    columns = {row["name"] for row in db.execute("PRAGMA table_info(users)")}
+    if "organizer_approved" not in columns:
+        return False
+    row = db.execute(
+        "SELECT role, organizer_approved FROM users WHERE id = ? LIMIT 1", (user_id,)
+    ).fetchone()
+    return row is not None and row["role"] == "organizer" and row["organizer_approved"] == 1
 
 
 def is_email_registered(email: str) -> bool:
