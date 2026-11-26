@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}{{ event.title or 'Etkinlik Detayı' }}{% endblock %}
+
+{% block content %}
+<div style="background-color: #F7F8FC; padding: 40px 20px; min-height: 80vh;">
+    <div class="event-detail" style="max-width: 900px; margin: 0 auto;">
+        <a href="{{ url_for('events.index') }}" class="back-link" style="display: inline-flex; align-items: center; gap: 6px; margin-bottom: 20px; color: #2B3A67; font-weight: 600; text-decoration: none;">
+            ← Etkinlikler Listesine Dön
+        </a>
+
+        <div class="event-detail-card" style="background-color: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 16px; padding: 32px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 20px;">
+                <div>
+                    <span style="display: inline-block; background-color: #EEF2FF; color: #3730A3; padding: 4px 12px; border-radius: 9999px; font-size: 13px; font-weight: 700; margin-bottom: 10px;">
+                        {{ event.category or 'Belirtilmedi' }}
+                    </span>
+                    <h1 style="color: #172554; margin: 0; font-size: 28px; line-height: 1.3;">
+                        {{ event.title or 'İsimsiz Etkinlik' }}
+                    </h1>
+                </div>
+
+                {% if event.status == 'published' %}
+                <span class="badge badge-published status-badge status-published" style="background-color: #D1FAE5; color: #065F46; padding: 6px 14px; border-radius: 9999px; font-weight: 600; font-size: 14px; white-space: nowrap;">
+                    Yayında
+                </span>
+                {% elif event.status == 'draft' %}
+                <span class="badge badge-draft status-badge status-draft" style="background-color: #FEF3C7; color: #92400E; padding: 6px 14px; border-radius: 9999px; font-weight: 600; font-size: 14px; white-space: nowrap;">
+                    Taslak
+                </span>
+                {% else %}
+                <span class="badge status-badge" style="background-color: #E2E8F0; color: #475569; padding: 6px 14px; border-radius: 9999px; font-weight: 600; font-size: 14px;">
+                    {{ event.status | e }}
+                </span>
+                {% endif %}
+            </div>
+
+            <div class="event-info" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 24px 0; padding: 20px; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px;">
+                <p style="margin: 0; color: #475569;">
+                    <strong style="display: block; color: #172554; margin-bottom: 4px;">Başlangıç Tarih ve Saati</strong>
+                    {{ event.start_time or 'Belirtilmedi' }}
+                </p>
+                <p style="margin: 0; color: #475569;">
+                    <strong style="display: block; color: #172554; margin-bottom: 4px;">Bitiş Tarih ve Saati</strong>
+                    {{ event.end_time or 'Belirtilmedi' }}
+                </p>
+                <p style="margin: 0; color: #475569;">
+                    <strong style="display: block; color: #172554; margin-bottom: 4px;">Salon Adı</strong>
+                    {% if event.venue_name is defined and event.venue_name %}
+                        {{ event.venue_name }}
+                    {% else %}
+                        Belirtilmedi
+                    {% endif %}
+                </p>
+                <p style="margin: 0; color: #475569;">
+                    <strong style="display: block; color: #172554; margin-bottom: 4px;">Salon Adresi</strong>
+                    {% if event.venue_address is defined and event.venue_address %}
+                        {{ event.venue_address }}
+                    {% else %}
+                        Belirtilmedi
+                    {% endif %}
+                </p>
+                <p style="margin: 0; color: #475569;">
+                    <strong style="display: block; color: #172554; margin-bottom: 4px;">Salon Kapasitesi</strong>
+                    {% if event.venue_capacity is defined and event.venue_capacity is not none %}
+                        {{ event.venue_capacity }} Kişi
+                    {% else %}
+                        Belirtilmedi
+                    {% endif %}
+                </p>
+                <p style="margin: 0; color: #475569;">
+                    <strong style="display: block; color: #172554; margin-bottom: 4px;">Etkinlik Kapasitesi</strong>
+                    {% if event.capacity is defined and event.capacity is not none %}
+                        {{ event.capacity }} Kişi
+                    {% else %}
+                        Belirtilmedi
+                    {% endif %}
+                </p>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 20px; border-radius: 12px; background: linear-gradient(135deg, #F8FAFC, #EEF2FF); border: 1px solid #E2E8F0;">
+                <div>
+                    <span style="display: block; color: #64748B; font-size: 13px; font-weight: 600; margin-bottom: 4px;">Bilet Fiyatı</span>
+                    <span style="color: #1E3A8A; font-size: 24px; font-weight: 800;">
+                        {% if event.price is defined and event.price is not none %}
+                            {% set price_num = event.price | float %}
+                            {% if price_num == 0 %}
+                                Ücretsiz
+                            {% elif price_num == (price_num | int) %}
+                                {{ price_num | int }} TL
+                            {% else %}
+                                {{ "%.2f"|format(price_num) }} TL
+                            {% endif %}
+                        {% else %}
+                            Belirtilmedi
+                        {% endif %}
+                    </span>
+                </div>
+
+                {% if event.status == 'draft' and (user_role | default(none)) == 'organizer' and (current_user_id | default(none)) is not none and (event.organizer_id | default(none)) is not none and event.organizer_id == current_user_id %}
+                <form action="{{ url_for('events.publish', event_id=event.id) }}" method="post" style="margin: 0;">
+                    <button type="submit" class="btn btn-publish" style="background-color: #10B981; color: #FFFFFF; border: none; padding: 10px 22px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px;">
+                        Yayınla
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
