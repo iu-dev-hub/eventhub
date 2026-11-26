@@ -223,7 +223,8 @@ def test_draft_is_hidden_from_others_but_visible_to_owner_and_admin(seeded, clie
     assert client.get("/events/1").status_code == 200
 
 
-def test_event_detail_requires_login_and_handles_missing(seeded, client):
-    assert client.get("/events/1").status_code == 401
+def test_event_detail_handles_anonymous_and_missing(seeded, client):
+    """TG-192: Anonim kullanıcı erişemeyeceği/olmayan etkinlikte 404 alır."""
+    assert client.get("/events/1").status_code == 404
     login(client, ORGANIZER, "organizer")
     assert client.get("/events/999").status_code == 404

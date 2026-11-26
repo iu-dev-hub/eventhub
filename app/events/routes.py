@@ -1,6 +1,6 @@
 from flask import flash, g, jsonify, redirect, render_template, request, session, url_for
 
-from app.accounts.security import login_required, role_required
+from app.accounts.security import role_required
 from app.core.db import get_db
 from app.events import bp, services
 
@@ -84,18 +84,19 @@ def create():
 
 
 @bp.route("/<int:event_id>", methods=["GET"])
-@login_required
 def event_detail(event_id):
-    """Kaydedilmiş etkinliği JSON döndürür; taslaklar yalnızca sahibine ve admine açıktır."""
-    event = services.get_event(get_db(), event_id)
+    """Etkinlik detayını rol bazlı görünürlükle JSON döndürür (TG-192, PB-07)."""
+    user_id = session.get("user_id")
+    user_role = session.get("user_role")
+    event = services.get_event_detail(
+        get_db(),
+        event_id,
+        user_id=user_id,
+        user_role=user_role,
+    )
     if event is None:
         return jsonify({"error": "Etkinlik bulunamadı."}), 404
-    if event["status"] != "published" and not (
-        g.user_role == "admin" or event["organizer_id"] == g.user_id
-    ):
-        # Taslağın varlığını sızdırmamak için 404 döndürülür.
-        return jsonify({"error": "Etkinlik bulunamadı."}), 404
-    return jsonify(event)
+    return jsonify(event), 200
 
 
 def _wants_html():
