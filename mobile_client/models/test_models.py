@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""
-Test script to verify that all model files can be imported and instantiated correctly.
-"""
+"""Test script to verify that all model files can be imported and instantiated correctly."""
+
 
 def test_event_model():
-    """Test Event model instantiation"""
+    """Test Event model instantiation."""
     try:
-        from event import Event
-        event = Event(
+        from mobile_client.models.event import Event
+
+        _ = Event(
             id=1,
             title="Test Event",
             category="Conference",
@@ -17,7 +17,7 @@ def test_event_model():
             capacity=100,
             price=50.0,
             status="published",
-            organizer_id=1
+            organizer_id=1,
         )
         print("PASS: Event model instantiated successfully")
         return True
@@ -25,16 +25,18 @@ def test_event_model():
         print(f"FAIL: Event model test failed: {e}")
         return False
 
+
 def test_seat_model():
-    """Test Seat model instantiation"""
+    """Test Seat model instantiation."""
     try:
-        from seat import Seat
-        seat = Seat(
+        from mobile_client.models.seat import Seat
+
+        _ = Seat(
             id=1,
             event_id=1,
             seat_code="A1",
             status="available",
-            locked_until=None
+            locked_until=None,
         )
         print("PASS: Seat model instantiated successfully")
         return True
@@ -42,17 +44,19 @@ def test_seat_model():
         print(f"FAIL: Seat model test failed: {e}")
         return False
 
+
 def test_ticket_model():
-    """Test Ticket model instantiation"""
+    """Test Ticket model instantiation."""
     try:
-        from ticket import Ticket
-        ticket = Ticket(
+        from mobile_client.models.ticket import Ticket
+
+        _ = Ticket(
             id=1,
             event_id=1,
             user_id=1,
             status="reserved",
             qr_code="QR123456789",
-            created_at="2026-11-01T10:00:00Z"
+            created_at="2026-11-01T10:00:00Z",
         )
         print("PASS: Ticket model instantiated successfully")
         return True
@@ -60,23 +64,24 @@ def test_ticket_model():
         print(f"FAIL: Ticket model test failed: {e}")
         return False
 
+
 def test_user_model():
-    """Test User model instantiation"""
+    """Test User model instantiation."""
     try:
-        from user import User
-        user = User(
+        from mobile_client.models.user import User
+
+        _ = User(
             id=1,
             first_name="John",
             last_name="Doe",
             email="john.doe@example.com",
-            password_hash="hashed_password",
             role="participant",
             is_student=False,
             student_number=None,
             notify_email=True,
             avatar_url=None,
             created_at="2026-11-01T10:00:00Z",
-            approved=False
+            approved=False,
         )
         print("PASS: User model instantiated successfully")
         return True
@@ -84,35 +89,37 @@ def test_user_model():
         print(f"FAIL: User model test failed: {e}")
         return False
 
+
 def main():
-    """Run all tests"""
+    """Run all tests."""
     print("Testing mobile client models...")
     print("=" * 40)
-    
+
     tests = [
         test_event_model,
         test_seat_model,
         test_ticket_model,
-        test_user_model
+        test_user_model,
     ]
-    
+
     passed = 0
     total = len(tests)
-    
+
     for test in tests:
         if test():
             passed += 1
         print()
-    
+
     print("=" * 40)
     print(f"Tests passed: {passed}/{total}")
-    
+
     if passed == total:
         print("ALL TESTS PASSED!")
         return 0
     else:
         print("SOME TESTS FAILED!")
         return 1
+
 
 if __name__ == "__main__":
     exit(main())
