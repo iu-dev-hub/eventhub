@@ -300,6 +300,40 @@ def get_event(db, event_id):
     return dict(row) if row else None
 
 
+def get_event_detail(db, event_id, user_id=None, user_role=None):
+    """TG-190: Etkinlik detayını kullanıcı rolüne göre görünürse döndürür.
+
+    Yayınlanmış etkinlikler anonim kullanıcılar dahil herkese açıktır.
+    Taslakları sadece sahibi olan organizatör veya admin görebilir.
+    Yetkisiz erişimde ve bulunamayan etkinlikte None döner.
+
+    user_id ve user_role, istek verisinden değil güvenilir oturumdan alınmalıdır.
+    """
+    event = get_event(db, event_id)
+    if event is None:
+        return None
+
+    # Yayınlanmış etkinliğin detayları herkese açıktır.
+    if event["status"] == "published":
+        return event
+
+    # Sadece taslak durumuna yönelik erişim izni tanımlıdır.
+    if event["status"] != "draft":
+        return None
+
+    # Anonim veya geçersiz kullanıcı taslaklara erişemez.
+    if isinstance(user_id, bool) or not isinstance(user_id, int) or user_id < 1:
+        return None
+
+    if user_role == "admin":
+        return event
+
+    if user_role == "organizer" and event["organizer_id"] == user_id:
+        return event
+
+    return None
+
+
 def list_events_by_organizer(db, organizer_id):
     """Organizatörün etkinliklerini (taslaklar dahil) yeniden eskiye sıralı döndürür."""
     rows = db.execute(
