@@ -234,3 +234,39 @@ def test_missing_or_unauthorized_event_returns_404_json_for_api_accept(
     assert response.mimetype == "application/json"
     assert response.get_json() == {"error": "Etkinlik bulunamadı."}
     assert "Gizli Taslak Atölye" not in response.get_data(as_text=True)
+
+
+@pytest.mark.parametrize(
+    "accept_header",
+    [
+        "application/xhtml+xml",
+        "text/html;q=0.9, application/json;q=0.5",
+        "text/html,application/xhtml+xml,*/*",
+    ],
+)
+def test_accept_header_quality_edge_cases_prefer_html(negotiation_db, client, accept_header):
+    """XHTML veya JSON'dan yüksek q değerine sahip HTML Accept başlıkları HTML döner."""
+    response = client.get("/events/201", headers={"Accept": accept_header})
+    assert response.status_code == 200
+    assert response.mimetype == "text/html"
+    assert not response.is_json
+    assert "Açık Ücretli Konser" in response.get_data(as_text=True)
+
+
+@pytest.mark.parametrize(
+    "accept_header",
+    [
+        "",
+        "text/html;q=0",
+        "text/html;q=0, */*;q=0.8",
+        "text/html;q=0.5, application/json;q=0.9",
+        "text/html, application/json",
+    ],
+)
+def test_accept_header_quality_edge_cases_prefer_json(negotiation_db, client, accept_header):
+    """q=0, JSON'dan düşük q, eşit q veya boş Accept başlıkları güvenli JSON döner."""
+    response = client.get("/events/201", headers={"Accept": accept_header})
+    assert response.status_code == 200
+    assert response.mimetype == "application/json"
+    assert response.is_json
+    assert response.get_json()["id"] == 201

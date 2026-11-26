@@ -114,12 +114,19 @@ def event_detail(event_id):
 
 def _wants_html():
     """İsteğin HTML yanıtı mı yoksa JSON yanıtı mı tercih ettiğini belirler."""
-    accept = request.headers.get("Accept", "").lower()
-    if not accept:
+    if not request.headers.get("Accept", "").strip():
         return False
-    if "text/html" in accept and "application/json" not in accept:
-        return True
-    return request.accept_mimetypes.best_match(["application/json", "text/html"]) == "text/html"
+    accept = request.accept_mimetypes
+    html_q = max(accept.quality("text/html"), accept.quality("application/xhtml+xml"))
+    json_q = accept.quality("application/json")
+    if html_q <= 0:
+        return False
+    if html_q != json_q:
+        return html_q > json_q
+    # Eşit q değerinde (örn. "text/html,*/*") medya türü özgüllüğünü Werkzeug belirler;
+    # aynı özgüllükte JSON ilk sırada olduğu için varsayılan JSON kalır.
+    best = accept.best_match(["application/json", "text/html", "application/xhtml+xml"])
+    return best in ("text/html", "application/xhtml+xml")
 
 
 @bp.route("/<int:event_id>/publish", methods=["POST"])
