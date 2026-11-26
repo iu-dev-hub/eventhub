@@ -1025,6 +1025,42 @@ def test_partial_user_schema_keeps_approval_while_adding_other_columns(approval)
         assert is_approved_organizer(1, db) is (approval == 1)
 
 
+@pytest.mark.parametrize("role", ["admin", "participant", "organizer"])
+def test_approve_organizer_checks_actor_and_preserves_transaction(app, role):
+    from app.accounts.services import approve_organizer, list_pending_organizers
+    from app.core.db import get_db
+
+    with app.app_context():
+        db = get_db()
+        db.executemany(
+            "INSERT INTO users (id, email, password_hash, role) VALUES (?, ?, 'hash', ?)",
+            [(1, "actor@example.com", role), (2, "target@example.com", "organizer")],
+        )
+        db.commit()
+        if role == "admin":
+            assert [user["id"] for user in list_pending_organizers()] == [2]
+            assert approve_organizer(2, 1) is True
+            assert approve_organizer(2, 1) is False
+            assert list_pending_organizers() == []
+        else:
+            with pytest.raises(PermissionError):
+                approve_organizer(2, 1)
+        assert db.in_transaction
+        db.rollback()
+        assert db.execute("SELECT organizer_approved FROM users WHERE id=2").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("user_id", [None, True, 0, -1, "2", 2**63])
+def test_approve_organizer_rejects_invalid_ids(app, user_id):
+    from app.accounts.services import approve_organizer
+
+    with app.app_context():
+        with pytest.raises(LookupError):
+            approve_organizer(user_id, 1)
+        with pytest.raises(PermissionError):
+            approve_organizer(2, user_id)
+
+
 @pytest.mark.parametrize("approval", [0, 1, 2, "not-approved"])
 def test_user_lookup_returns_strict_boolean_approval_and_existing_fields(app, approval):
     from app.accounts.services import get_user_by_id

@@ -41,6 +41,47 @@
   outline-offset: 3px;
 }
 
+.organizer-approval-list {
+  list-style: none;
+  padding: 0;
+}
+
+.organizer-approval-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow-wrap: anywhere;
+}
+
+.organizer-approval-card > div {
+  min-width: 0;
+}
+
+.organizer-approval-card h2,
+.organizer-approval-card p {
+  margin: 0;
+}
+
+.organizer-approval-card h2 {
+  font-size: 1.1rem;
+}
+
+.organizer-approval-card .btn {
+  min-height: 44px;
+}
+
+.organizer-approval-card .btn:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 3px;
+}
+
 .organizer-approval-status {
   display: inline-flex;
   flex-wrap: wrap;
