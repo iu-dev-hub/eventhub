@@ -1059,3 +1059,31 @@ def test_approve_organizer_rejects_invalid_ids(app, user_id):
             approve_organizer(user_id, 1)
         with pytest.raises(PermissionError):
             approve_organizer(2, user_id)
+
+
+@pytest.mark.parametrize("approval", [0, 1, 2, "not-approved"])
+def test_user_lookup_returns_strict_boolean_approval_and_existing_fields(app, approval):
+    from app.accounts.services import get_user_by_id
+    from app.core.db import get_db
+
+    with app.app_context():
+        db = get_db()
+        db.execute(
+            "INSERT INTO users (id, first_name, last_name, email, password_hash, role, "
+            "organizer_approved, is_student, student_number, notify_email, avatar_url) "
+            "VALUES (1, 'Deniz', 'Kaya', 'deniz@example.com', 'hash', 'organizer', ?, "
+            "1, '123', 0, '/avatar.png')", (approval,),
+        )
+        db.commit()
+        expected = dict(db.execute("SELECT * FROM users WHERE id=1").fetchone())
+        expected.pop("password_hash")
+        expected.pop("organizer_approved")
+        expected.update(is_student=True, notify_email=False)
+        assert get_user_by_id(1) == expected
+        assert get_user_by_id(1, include_organizer_approval=True) == {
+            **expected, "organizer_approved": approval == 1,
+        }
+        assert get_user_by_id(999) is None
+        db.execute("UPDATE users SET organizer_approved=1 WHERE id=1")
+        db.commit()
+        assert get_user_by_id(1, include_organizer_approval=True)["organizer_approved"] is True

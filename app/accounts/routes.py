@@ -330,14 +330,15 @@ def approve_organizer_route(user_id):
 def dashboard():
     """Temporary accounts welcome dashboard (TG-71, PB-04)."""
     user_id = session.get("user_id")
-    user = get_user_by_id(user_id)
+    wants_html = (
+        request.accept_mimetypes.best_match(["text/html", "application/json"], default="text/html")
+        == "text/html"
+    )
+    user = get_user_by_id(user_id, include_organizer_approval=wants_html)
     if not user:
         session.clear()
         return jsonify({"error": "Kullanıcı bulunamadı."}), 401
-    if (
-        request.accept_mimetypes.best_match(["text/html", "application/json"], default="text/html")
-        == "text/html"
-    ):
+    if wants_html:
         return render_template("accounts/dashboard.html", user=user)
     return jsonify({"user": user, "message": "Hoş geldiniz."}), 200
 
@@ -364,14 +365,15 @@ def guest():
 def profile():
     """User profile screen (TG-72, PB-05)."""
     user_id = session.get("user_id")
-    user = get_user_by_id(user_id)
+    wants_html = (
+        request.accept_mimetypes.best_match(["text/html", "application/json"], default="text/html")
+        == "text/html"
+    )
+    user = get_user_by_id(user_id, include_organizer_approval=wants_html)
     if not user:
         session.clear()
         return jsonify({"error": "Kullanıcı bulunamadı."}), 401
-    if (
-        request.accept_mimetypes.best_match(["text/html", "application/json"], default="text/html")
-        == "text/html"
-    ):
+    if wants_html:
         return render_template("accounts/profile.html", user=user)
     return jsonify({"user": user}), 200
 
