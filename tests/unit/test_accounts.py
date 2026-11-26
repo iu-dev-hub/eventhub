@@ -3,11 +3,16 @@
 Tests core business rules and scrypt hashing functions in isolation.
 """
 
+import sqlite3
+from contextlib import closing
+
 import pytest
 
 from app.accounts.services import (
     authenticate_user,
+    ensure_user_columns,
     hash_password,
+    is_approved_organizer,
     is_email_registered,
     register_user,
     validate_email_format,
@@ -675,15 +680,16 @@ def test_ensure_user_columns_backwards_compatibility(app):
     conn.close()
 
 
-def test_ensure_user_columns_exception_gracefully_handled():
-    """TG-82: Beklenmeyen veritabanı hatalarında fonksiyon çökmemelidir."""
+def test_ensure_user_columns_exception_is_reported():
+    """TG-178: Geçiş hatası çağırana bildirilmelidir."""
     from app.accounts.services import ensure_user_columns
 
     class BrokenDB:
         def execute(self, *args, **kwargs):
             raise RuntimeError("Database connection failure")
 
-    ensure_user_columns(BrokenDB())
+    with pytest.raises(RuntimeError, match="Database connection failure"):
+        ensure_user_columns(BrokenDB())
 
 
 def test_update_user_profile_invalid_inputs(app):
@@ -880,3 +886,140 @@ def test_update_avatar_url(app):
         user_cleared = get_user_by_id(user["id"])
         assert user_cleared["avatar_url"] is None
 
+
+
+@pytest.mark.parametrize("role", ["organizer", "participant", "admin"])
+@pytest.mark.parametrize("approval", [0, 1, 2, None, "0"])
+def test_organizer_approval_requires_exact_role_and_value(role, approval):
+    """TG-178: Servis harici bağlantıda yalnızca organizer/1 birleşimini kabul eder."""
+    with closing(sqlite3.connect(":memory:")) as db:
+        db.row_factory = sqlite3.Row
+        db.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, role TEXT, organizer_approved)")
+        db.execute("INSERT INTO users VALUES (1, ?, ?)", (role, approval))
+        assert is_approved_organizer(1, db) is (role == "organizer" and approval == 1)
+        assert is_approved_organizer(99, db) is False
+        assert db.in_transaction
+        db.rollback()
+        assert db.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("user_id", [None, True, False, 0, -1, "1", 1.0, [], 2**63])
+def test_organizer_approval_invalid_id_needs_no_connection(user_id, monkeypatch):
+    def unexpected_connection():
+        pytest.fail("Geçersiz kimlik için bağlantı açılmamalı")
+
+    monkeypatch.setattr("app.accounts.services.get_db", unexpected_connection)
+    assert is_approved_organizer(user_id) is False
+
+
+def test_organizer_approval_uses_app_connection_without_committing(app):
+    from app.core.db import get_db
+
+    with app.app_context():
+        db = get_db()
+        db.execute(
+            "INSERT INTO users (email, password_hash, role, organizer_approved) "
+            "VALUES ('approved@example.com', 'hash', 'organizer', 1)"
+        )
+        user_id = db.execute("SELECT id FROM users").fetchone()[0]
+        assert is_approved_organizer(user_id) is True
+        assert db.in_transaction
+        db.rollback()
+        assert is_approved_organizer(user_id) is False
+
+
+@pytest.mark.parametrize("extra_columns", ["", ", first_name TEXT DEFAULT ''"])
+def test_user_migration_preserves_legacy_rows_and_relations(extra_columns):
+    with closing(sqlite3.connect(":memory:")) as db:
+        db.row_factory = sqlite3.Row
+        db.execute("PRAGMA foreign_keys = ON")
+        db.execute(
+            "CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT, "
+            f"password_hash TEXT, role TEXT{extra_columns})"
+        )
+        db.execute("CREATE TABLE linked (user_id INTEGER REFERENCES users(id))")
+        db.execute(
+            "INSERT INTO users (id, email, password_hash, role) "
+            "VALUES (42, 'legacy@example.com', 'unchanged-hash', 'organizer')"
+        )
+        db.execute("INSERT INTO linked VALUES (42)")
+        db.commit()
+        before = tuple(db.execute("SELECT id, email, password_hash, role FROM users").fetchone())
+        assert is_approved_organizer(42, db) is False
+        ensure_user_columns(db)
+        ensure_user_columns(db)
+        after = tuple(db.execute("SELECT id, email, password_hash, role FROM users").fetchone())
+        assert after == before
+        assert db.execute("SELECT organizer_approved FROM users").fetchone()[0] == 0
+        assert db.execute("SELECT user_id FROM linked").fetchone()[0] == 42
+        assert not db.execute("PRAGMA foreign_key_check").fetchall()
+        expected = {
+            "first_name", "last_name", "is_student", "student_number", "notify_email",
+            "avatar_url", "organizer_approved",
+        }
+        assert expected <= {row["name"] for row in db.execute("PRAGMA table_info(users)")}
+
+
+def test_user_migration_preserves_existing_approval_and_outer_transaction(app):
+    from app.core.db import get_db
+
+    with app.app_context():
+        db = get_db()
+        db.execute(
+            "INSERT INTO users (id, email, password_hash, role, organizer_approved, "
+            "is_student, student_number) VALUES (7, 'saved@example.com', 'hash', "
+            "'organizer', 1, 1, '123')"
+        )
+        db.commit()
+        before = tuple(db.execute("SELECT * FROM users").fetchone())
+        db.execute("UPDATE users SET first_name = 'Pending' WHERE id = 7")
+        ensure_user_columns(db)
+        ensure_user_columns(db)
+        assert db.in_transaction
+        assert is_approved_organizer(7, db) is True
+        db.rollback()
+        assert tuple(db.execute("SELECT * FROM users").fetchone()) == before
+
+
+def test_user_migration_rolls_back_partial_schema_and_reports_error():
+    with closing(sqlite3.connect(":memory:")) as db:
+        db.row_factory = sqlite3.Row
+        db.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT)")
+        db.execute("INSERT INTO users VALUES (1, 'pending@example.com')")
+
+        def deny_second_column(action, database, table, *unused):
+            if action == sqlite3.SQLITE_ALTER_TABLE:
+                columns = {row["name"] for row in db.execute("PRAGMA table_info(users)")}
+                if "first_name" in columns:
+                    return sqlite3.SQLITE_DENY
+            return sqlite3.SQLITE_OK
+
+        db.set_authorizer(deny_second_column)
+        with pytest.raises(sqlite3.DatabaseError):
+            ensure_user_columns(db)
+        db.set_authorizer(None)
+        assert {row["name"] for row in db.execute("PRAGMA table_info(users)")} == {"id", "email"}
+        assert db.execute("SELECT email FROM users").fetchone()[0] == "pending@example.com"
+        assert db.in_transaction
+        db.rollback()
+        assert db.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("approval", [0, 1])
+def test_partial_user_schema_keeps_approval_while_adding_other_columns(approval):
+    with closing(sqlite3.connect(":memory:")) as db:
+        db.row_factory = sqlite3.Row
+        db.execute(
+            "CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT, password_hash TEXT, "
+            "role TEXT, first_name TEXT, organizer_approved BOOLEAN NOT NULL DEFAULT 0)"
+        )
+        db.execute(
+            "INSERT INTO users VALUES (1, 'partial@example.com', 'hash', 'organizer', 'Deniz', ?)",
+            (approval,),
+        )
+        db.commit()
+        ensure_user_columns(db)
+        ensure_user_columns(db)
+        row = db.execute("SELECT first_name, last_name, organizer_approved FROM users").fetchone()
+        assert tuple(row) == ("Deniz", "", approval)
+        assert is_approved_organizer(1, db) is (approval == 1)
