@@ -17,4 +17,9 @@
     <a class="btn btn-secondary" href="{{ url_for('accounts.forgot_password') }}">Şifremi Unuttum</a>
   {% endif %}
 </nav>
+{% if session.get('user_role') == 'admin' %}
+<p>
+  <a class="btn btn-outline" href="{{ url_for('accounts.admin_organizers') }}">Organizatör Onayları</a>
+</p>
+{% endif %}
 {% endblock %}

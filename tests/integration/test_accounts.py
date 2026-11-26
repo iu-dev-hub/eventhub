@@ -593,11 +593,9 @@ def test_admin_status_with_participant_role_returns_403(client, app):
 
 def test_admin_status_with_admin_role_returns_200(client, app):
     """TG-54: Admin rolündeki kullanıcı admin endpoint'ine eriştiğinde 200 OK dönmelidir."""
-    # Admin olarak kaydol ve giriş yap
-    client.post(
-        "/accounts/register",
-        json={"email": "superadmin@example.com", "password": "Password123", "role": "admin"},
-    )
+    # Mevcut admin hesabını güvenilir test hazırlığında oluştur.
+    with app.app_context():
+        register_user("superadmin@example.com", "Password123", role="admin")
     client.post(
         "/accounts/login",
         json={"email": "superadmin@example.com", "password": "Password123"},
@@ -831,22 +829,25 @@ def test_profile_and_edit_flow(client):
         ("admin", "Yönetici", False, None),
     ],
 )
-def test_profile_displays_account_details(client, role, role_label, is_student, student_number):
+def test_profile_displays_account_details(
+    client, app, role, role_label, is_student, student_number
+):
     """TG-167: Profil, hesap bilgilerini ve kayıtlı öğrenci beyanını gösterir."""
     credentials = {"email": "deniz.kaya@example.com", "password": "Password123"}
-    registration = client.post(
-        "/accounts/register",
-        json={
-            **credentials,
-            "terms_accepted": True,
-            "first_name": "Deniz",
-            "last_name": "Kaya",
-            "role": role,
-            "is_student": is_student,
-            "student_number": student_number,
-        },
-    )
-    assert registration.status_code == 201
+    payload = {
+        **credentials,
+        "terms_accepted": True,
+        "first_name": "Deniz",
+        "last_name": "Kaya",
+        "role": role,
+        "is_student": is_student,
+        "student_number": student_number,
+    }
+    if role == "admin":
+        with app.app_context():
+            register_user(**payload)
+    else:
+        assert client.post("/accounts/register", json=payload).status_code == 201
     assert client.post("/accounts/login", json=credentials).status_code == 200
 
     response = client.get("/accounts/profile", headers={"Accept": "text/html"})
@@ -1319,3 +1320,187 @@ def test_init_db_migrates_users_without_losing_related_data(app):
         db.commit()
         init_db()
         assert db.execute("SELECT organizer_approved FROM users").fetchone()[0] == 1
+
+
+@pytest.fixture
+def organizer_approval_data(app):
+    from app.accounts.services import hash_password
+
+    with app.app_context():
+        db = get_db()
+        password_hash = hash_password("Password123")
+        db.executemany(
+            "INSERT INTO users (id, first_name, last_name, email, password_hash, role, "
+            "organizer_approved) VALUES (?, 'Deniz', 'Kaya', ?, ?, ?, ?)",
+            [
+                (1, "admin@example.com", password_hash, "admin", 0),
+                (2, "pending@example.com", password_hash, "organizer", 0),
+                (3, "participant@example.com", password_hash, "participant", 0),
+                (4, "approved@example.com", password_hash, "organizer", 1),
+            ],
+        )
+        db.execute("INSERT INTO venues VALUES (1, 'Salon', 'Adres', 100)")
+        db.execute(
+            "INSERT INTO events (id, title, category, venue_id, start_time, end_time, "
+            "capacity, organizer_id) VALUES (1, 'Etkinlik', 'Eğitim', 1, "
+            "'2027-01-01T10:00', '2027-01-01T12:00', 50, 2)"
+        )
+        db.commit()
+
+
+@pytest.fixture
+def organizer_admin_client(client, organizer_approval_data):
+    response = client.post(
+        "/accounts/login", json={"email": "admin@example.com", "password": "Password123"}
+    )
+    assert response.status_code == 200
+    return client
+
+
+def organizer_form_token(client):
+    response = client.get("/accounts/admin/organizers")
+    assert response.status_code == 200
+    return re.search(r'name="csrf_token" value="([^"]+)"', response.get_data(as_text=True))[1]
+
+
+def test_admin_lists_only_pending_organizers(organizer_admin_client):
+    response = organizer_admin_client.get("/accounts/admin/organizers")
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "pending@example.com" in html
+    assert "Deniz Kaya" in html
+    assert "approved@example.com" not in html
+    assert "participant@example.com" not in html
+    assert "admin@example.com" not in html
+    assert 'action="/accounts/admin/organizers/2/approve"' in html
+    assert 'method="post"' in html
+    home = organizer_admin_client.get("/accounts/", headers={"Accept": "text/html"})
+    assert 'href="/accounts/admin/organizers"' in home.get_data(as_text=True)
+
+
+@pytest.mark.parametrize("role,user_id,status", [(None, None, 401), ("organizer", 2, 403),
+                                                ("participant", 3, 403)])
+@pytest.mark.parametrize("method,path", [
+    ("get", "/accounts/admin/organizers"),
+    ("post", "/accounts/admin/organizers/2/approve"),
+])
+def test_approval_routes_require_admin(client, organizer_approval_data, role, user_id, status,
+                                       method, path):
+    if role:
+        with client.session_transaction() as session:
+            session["user_id"] = user_id
+            session["user_role"] = role
+    response = getattr(client, method)(path)
+    assert response.status_code == status
+
+
+def test_admin_approval_preserves_other_user_and_event_data(organizer_admin_client, app):
+    with app.app_context():
+        users_before = [dict(row) for row in get_db().execute("SELECT * FROM users ORDER BY id")]
+        events_before = [dict(row) for row in get_db().execute("SELECT * FROM events")]
+    token = organizer_form_token(organizer_admin_client)
+    for _ in range(2):
+        response = organizer_admin_client.post(
+            "/accounts/admin/organizers/2/approve", data={"csrf_token": token}
+        )
+        assert response.status_code == 303
+        assert response.headers["Location"] == "/accounts/admin/organizers"
+    with app.app_context():
+        users_before[1]["organizer_approved"] = 1
+        users_after = [dict(row) for row in get_db().execute("SELECT * FROM users ORDER BY id")]
+        assert users_after == users_before
+        assert [dict(row) for row in get_db().execute("SELECT * FROM events")] == events_before
+        assert not get_db().execute("PRAGMA foreign_key_check").fetchall()
+    html = organizer_admin_client.get("/accounts/admin/organizers").get_data(as_text=True)
+    assert "Onay bekleyen organizatör bulunmuyor." in html
+
+
+@pytest.mark.parametrize("token", [None, "wrong-token", "geçersiz"])
+def test_approval_rejects_bad_csrf(organizer_admin_client, app, token):
+    organizer_form_token(organizer_admin_client)
+    response = organizer_admin_client.post(
+        "/accounts/admin/organizers/2/approve", data={} if token is None else {"csrf_token": token}
+    )
+    assert response.status_code == 403
+    with app.app_context():
+        row = get_db().execute("SELECT organizer_approved FROM users WHERE id=2").fetchone()
+        assert row[0] == 0
+
+
+def test_approval_rejects_token_from_another_session(organizer_admin_client, app):
+    token = organizer_form_token(organizer_admin_client)
+    other = app.test_client()
+    assert other.post(
+        "/accounts/login", json={"email": "admin@example.com", "password": "Password123"}
+    ).status_code == 200
+    organizer_form_token(other)
+    assert other.post(
+        "/accounts/admin/organizers/2/approve", data={"csrf_token": token}
+    ).status_code == 403
+
+
+def test_approval_get_cannot_change_status(organizer_admin_client, app):
+    response = organizer_admin_client.get("/accounts/admin/organizers/2/approve")
+    assert response.status_code == 405
+    with app.app_context():
+        row = get_db().execute("SELECT organizer_approved FROM users WHERE id=2").fetchone()
+        assert row[0] == 0
+
+
+@pytest.mark.parametrize("role", ["organizer", "participant", None])
+def test_stale_admin_session_is_denied(organizer_admin_client, app, role):
+    token = organizer_form_token(organizer_admin_client)
+    with app.app_context():
+        db = get_db()
+        if role is None:
+            db.execute("DELETE FROM users WHERE id=1")
+        else:
+            db.execute("UPDATE users SET role=? WHERE id=1", (role,))
+        db.commit()
+    expected = 401 if role is None else 403
+    assert organizer_admin_client.post(
+        "/accounts/admin/organizers/2/approve", data={"csrf_token": token}
+    ).status_code == expected
+    assert organizer_admin_client.get("/accounts/admin/organizers").status_code == expected
+    with app.app_context():
+        row = get_db().execute("SELECT organizer_approved FROM users WHERE id=2").fetchone()
+        assert row[0] == 0
+
+
+@pytest.mark.parametrize("user_id", [1, 3, 999, 2**63])
+def test_approval_rejects_non_organizer_targets(organizer_admin_client, user_id):
+    token = organizer_form_token(organizer_admin_client)
+    assert organizer_admin_client.post(
+        f"/accounts/admin/organizers/{user_id}/approve", data={"csrf_token": token}
+    ).status_code == 404
+
+
+@pytest.mark.parametrize("payload_type", ["json", "data"])
+def test_public_registration_cannot_create_admin(client, app, payload_type):
+    payload = {"email": "attack@example.com", "password": "Password123", "role": "admin"}
+    response = client.post(
+        "/accounts/register",
+        **{payload_type: payload},
+    )
+    assert response.status_code == 403
+    with app.app_context():
+        assert get_db().execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0
+
+
+
+def test_failed_approval_rolls_back_changes(organizer_admin_client, app, monkeypatch):
+    import sqlite3
+
+    def fail_after_update(user_id, admin_id):
+        get_db().execute("UPDATE users SET organizer_approved=1 WHERE id=?", (user_id,))
+        raise sqlite3.OperationalError("Simulated database failure")
+
+    token = organizer_form_token(organizer_admin_client)
+    monkeypatch.setattr("app.accounts.routes.approve_organizer", fail_after_update)
+    response = organizer_admin_client.post(
+        "/accounts/admin/organizers/2/approve", data={"csrf_token": token}
+    )
+    assert response.status_code == 503
+    with app.app_context():
+        row = get_db().execute("SELECT organizer_approved FROM users WHERE id=2").fetchone()
+        assert row[0] == 0
