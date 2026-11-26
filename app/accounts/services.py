@@ -167,6 +167,43 @@ def is_approved_organizer(user_id, db=None) -> bool:
     return row is not None and row["role"] == "organizer" and row["organizer_approved"] == 1
 
 
+def list_pending_organizers():
+    """TG-179: Onay bekleyen organizatörlerin ekran için gerekli bilgilerini okur."""
+    rows = get_db().execute(
+        "SELECT id, first_name, last_name, email FROM users "
+        "WHERE role = 'organizer' AND organizer_approved = 0 ORDER BY id"
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def approve_organizer(user_id, admin_id):
+    """TG-179: Güncel admin yetkisiyle onaylar; işlemi çağıran tamamlar."""
+    if (
+        isinstance(admin_id, bool)
+        or not isinstance(admin_id, int)
+        or not 0 < admin_id < 2**63
+    ):
+        raise PermissionError("Bu işlem için yetkiniz bulunmamaktadır.")
+    if isinstance(user_id, bool) or not isinstance(user_id, int) or not 0 < user_id < 2**63:
+        raise LookupError("Organizatör bulunamadı.")
+    db = get_db()
+    cursor = db.execute(
+        "UPDATE users SET organizer_approved = 1 "
+        "WHERE id = ? AND role = 'organizer' AND organizer_approved = 0 "
+        "AND EXISTS (SELECT 1 FROM users WHERE id = ? AND role = 'admin')",
+        (user_id, admin_id),
+    )
+    admin = db.execute("SELECT role FROM users WHERE id = ?", (admin_id,)).fetchone()
+    if admin is None or admin["role"] != "admin":
+        raise PermissionError("Bu işlem için yetkiniz bulunmamaktadır.")
+    target = db.execute(
+        "SELECT role, organizer_approved FROM users WHERE id = ?", (user_id,)
+    ).fetchone()
+    if target is None or target["role"] != "organizer":
+        raise LookupError("Organizatör bulunamadı.")
+    return cursor.rowcount == 1
+
+
 def is_email_registered(email: str) -> bool:
     """Checks whether an email address is already registered in the system (BR-1.2).
 
