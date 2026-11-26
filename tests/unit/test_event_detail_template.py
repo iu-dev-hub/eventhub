@@ -156,6 +156,45 @@ def test_detail_template_renders_safely_without_user_context_vars(app):
     assert "/events/42/publish" not in html
 
 
+def test_detail_template_hides_publish_form_when_organizer_id_is_none(app):
+    """Etkinliğin organizer_id değeri None ise hiçbir kullanıcı için 'Yayınla' render edilmez."""
+    draft_event = _make_event(status="draft", organizer_id=None)
+    with app.test_request_context("/events/42"):
+        html_none_user = render_template(
+            "events/detail.html",
+            event=draft_event,
+            user_role="organizer",
+            current_user_id=None,
+        )
+        html_valid_user = render_template(
+            "events/detail.html",
+            event=draft_event,
+            user_role="organizer",
+            current_user_id=10,
+        )
+
+    assert "/events/42/publish" not in html_none_user
+    assert "/events/42/publish" not in html_valid_user
+
+
+@pytest.mark.parametrize(
+    ("raw_status", "escaped_status"),
+    [
+        ("<script>alert(1)</script>", "&lt;script&gt;alert(1)&lt;/script&gt;"),
+        ("cancelled & paused", "cancelled &amp; paused"),
+    ],
+)
+def test_detail_template_escapes_fallback_unknown_status(app, raw_status, escaped_status):
+    """Bilinmeyen veya özel karakterli durum değerleri HTML kaçışı uygulanarak render edilir."""
+    event = _make_event(status=raw_status)
+    with app.test_request_context("/events/42"):
+        html = render_template("events/detail.html", event=event)
+
+    assert raw_status not in html
+    assert escaped_status in html
+    assert "/events/42/publish" not in html
+
+
 @pytest.fixture
 def index_seeded(app):
     with app.app_context():

@@ -30,7 +30,7 @@
                 </span>
                 {% else %}
                 <span class="badge status-badge" style="background-color: #E2E8F0; color: #475569; padding: 6px 14px; border-radius: 9999px; font-weight: 600; font-size: 14px;">
-                    {{ event.status }}
+                    {{ event.status | e }}
                 </span>
                 {% endif %}
             </div>
@@ -97,7 +97,7 @@
                     </span>
                 </div>
 
-                {% if event.status == 'draft' and (user_role | default(none)) == 'organizer' and (current_user_id | default(none)) is not none and event.organizer_id == current_user_id %}
+                {% if event.status == 'draft' and (user_role | default(none)) == 'organizer' and (current_user_id | default(none)) is not none and (event.organizer_id | default(none)) is not none and event.organizer_id == current_user_id %}
                 <form action="{{ url_for('events.publish', event_id=event.id) }}" method="post" style="margin: 0;">
                     <button type="submit" class="btn btn-publish" style="background-color: #10B981; color: #FFFFFF; border: none; padding: 10px 22px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px;">
                         Yayınla
