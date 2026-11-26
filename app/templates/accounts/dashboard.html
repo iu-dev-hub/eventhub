@@ -29,6 +29,12 @@
     <div class="hero-welcome-card">
       <h1>Tekrar Hoş Geldiniz, {{ user.first_name if user.first_name else user.email }}!</h1>
       <p>EventHub'ta kayıtlı etkinlikler sizi bekliyor.</p>
+      {% if user.role == 'organizer' %}
+        <span class="organizer-approval-status{% if user.organizer_approved %} is-approved{% endif %}">
+          Organizatör onayı
+          <strong>{{ 'Onaylandı' if user.organizer_approved else 'Onay Bekliyor' }}</strong>
+        </span>
+      {% endif %}
     </div>
 
     <!-- Geçici İzleme Ekranı Bilgilendirme Kutusu (Ekran 8 & 9) -->
