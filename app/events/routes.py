@@ -85,7 +85,7 @@ def create():
 
 @bp.route("/<int:event_id>", methods=["GET"])
 def event_detail(event_id):
-    """Etkinlik detayını rol bazlı görünürlükle JSON döndürür (TG-192, PB-07)."""
+    """Etkinlik detayını rol bazlı görünürlük ve içerik pazarlığıyla HTML/JSON döner (TG-193)."""
     user_id = session.get("user_id")
     user_role = session.get("user_role")
     event = services.get_event_detail(
@@ -94,17 +94,30 @@ def event_detail(event_id):
         user_id=user_id,
         user_role=user_role,
     )
+    is_html = _wants_html()
     if event is None:
+        if is_html:
+            return render_template("events/not_found.html"), 404
         return jsonify({"error": "Etkinlik bulunamadı."}), 404
+    if is_html:
+        return (
+            render_template(
+                "events/detail.html",
+                event=event,
+                user_role=user_role,
+                current_user_id=user_id,
+            ),
+            200,
+        )
     return jsonify(event), 200
 
 
 def _wants_html():
     """İsteğin HTML yanıtı mı yoksa JSON yanıtı mı tercih ettiğini belirler."""
-    accept = request.headers.get("Accept", "")
-    if "application/json" in accept:
+    accept = request.headers.get("Accept", "").lower()
+    if not accept:
         return False
-    if "text/html" in accept:
+    if "text/html" in accept and "application/json" not in accept:
         return True
     return request.accept_mimetypes.best_match(["application/json", "text/html"]) == "text/html"
 
