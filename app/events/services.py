@@ -266,13 +266,37 @@ def create_draft_event(
 
 
 def get_event(db, event_id):
-    """Etkinliği `events` tablosundan okur; yoksa `None` döner (TG-118).
+    """TG-189: Etkinliği salon bilgileriyle birlikte tek sorguda döndürür.
 
-    Dönüş biçimi: interface-contract.md 2.4'teki alanlar (`dict`).
+    Mevcut etkinlik alanlarına venue_name, venue_address ve venue_capacity eklenir.
+    Etkinlik yoksa veya kimlik geçersizse None döner.
     """
     if isinstance(event_id, bool) or not isinstance(event_id, int):
         return None
-    row = db.execute(f"SELECT {_EVENT_COLUMNS} FROM events WHERE id = ?", (event_id,)).fetchone()
+
+    row = db.execute(
+        """
+        SELECT
+            e.id,
+            e.title,
+            e.category,
+            e.venue_id,
+            e.start_time,
+            e.end_time,
+            e.capacity,
+            e.price,
+            e.status,
+            e.organizer_id,
+            v.name AS venue_name,
+            v.address AS venue_address,
+            v.capacity AS venue_capacity
+        FROM events AS e
+        LEFT JOIN venues AS v ON e.venue_id = v.id
+        WHERE e.id = ?
+        """,
+        (event_id,),
+    ).fetchone()
+
     return dict(row) if row else None
 
 
