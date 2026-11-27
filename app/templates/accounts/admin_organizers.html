@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Organizatör Onayları{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='accounts.css') }}">
+{% endblock %}
+{% block content %}
+<h1>Organizatör Onayları</h1>
+<p>Onay bekleyen organizatörler</p>
+{% if organizers %}
+<ul class="organizer-approval-list">
+  {% for organizer in organizers %}
+  <li class="organizer-approval-card">
+    <div>
+      <h2>{{ (organizer.first_name ~ ' ' ~ organizer.last_name)|trim or 'Organizatör' }}</h2>
+      <p>{{ organizer.email }}</p>
+    </div>
+    <form method="post" action="{{ url_for('accounts.approve_organizer_route', user_id=organizer.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="btn btn-primary" type="submit" aria-label="{{ organizer.email }} hesabını onayla">
+        Onayla
+      </button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>Onay bekleyen organizatör bulunmuyor.</p>
+{% endif %}
+<a class="btn btn-outline" href="{{ url_for('accounts.index') }}">Hesaplara Dön</a>
+{% endblock %}

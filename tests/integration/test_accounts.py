@@ -3,6 +3,8 @@
 Tests full request-response lifecycle with Flask test client and isolated SQLite database.
 """
 
+import re
+
 import pytest
 
 from app.accounts.services import (
@@ -29,6 +31,51 @@ def test_accounts_index_html(client):
     html = response.get_data(as_text=True)
     assert "Hesap Yönetimi" in html
     assert "EventHub" in html
+
+
+@pytest.mark.parametrize(
+    ("signed_in", "expected_links"),
+    [
+        (
+            False,
+            [
+                ("/accounts/login", "Giriş Yap"),
+                ("/accounts/register", "Kayıt Ol"),
+                ("/accounts/forgot-password", "Şifremi Unuttum"),
+            ],
+        ),
+        (
+            True,
+            [
+                ("/accounts/profile", "Profilim"),
+                ("/accounts/settings", "Ayarlar"),
+                ("/accounts/change-password", "Şifre Değiştir"),
+            ],
+        ),
+    ],
+)
+def test_accounts_index_shows_navigation_for_session(client, signed_in, expected_links):
+    """TG-166: Hesap ana sayfası oturuma uygun form bağlantılarını göstermelidir."""
+    if signed_in:
+        credentials = {"email": "account-home@example.com", "password": "Password123"}
+        registration = client.post(
+            "/accounts/register", json={**credentials, "terms_accepted": True}
+        )
+        assert registration.status_code == 201
+        assert client.post("/accounts/login", json=credentials).status_code == 200
+
+    headers = {"Accept": "text/html"}
+    response = client.get("/accounts/", headers=headers)
+    assert response.status_code == 200
+    links = re.findall(
+        r'<a\b[^>]*\bhref="(/accounts/[^"]+)"[^>]*>\s*([^<]+?)\s*</a>',
+        response.get_data(as_text=True),
+    )
+    assert links == expected_links
+    for path, _ in links:
+        destination = client.get(path, headers=headers)
+        assert destination.status_code == 200
+        assert destination.mimetype == "text/html"
 
 
 def test_register_user_success(client, app):
@@ -546,11 +593,9 @@ def test_admin_status_with_participant_role_returns_403(client, app):
 
 def test_admin_status_with_admin_role_returns_200(client, app):
     """TG-54: Admin rolündeki kullanıcı admin endpoint'ine eriştiğinde 200 OK dönmelidir."""
-    # Admin olarak kaydol ve giriş yap
-    client.post(
-        "/accounts/register",
-        json={"email": "superadmin@example.com", "password": "Password123", "role": "admin"},
-    )
+    # Mevcut admin hesabını güvenilir test hazırlığında oluştur.
+    with app.app_context():
+        register_user("superadmin@example.com", "Password123", role="admin")
     client.post(
         "/accounts/login",
         json={"email": "superadmin@example.com", "password": "Password123"},
@@ -627,6 +672,43 @@ def test_auth_screens_render_templates(client):
     res_reg = client.get("/accounts/register")
     assert res_reg.status_code == 200
     assert "Hemen kayıt olun!" in res_reg.get_data(as_text=True)
+
+
+@pytest.mark.parametrize(
+    ("page", "label", "target", "signed_in", "link_count"),
+    [
+        ("/login", "Hesaplara Dön", "/accounts/", False, 1),
+        ("/register", "Hesaplara Dön", "/accounts/", False, 1),
+        ("/forgot-password", "Giriş Ekranına Dön", "/accounts/login", False, 1),
+        ("/reset-password/demo-token", "Giriş Ekranına Dön", "/accounts/login", False, 1),
+        ("/change-password", "Panele Geri Dön", "/accounts/dashboard", True, 1),
+        ("/settings", "İptal", "/accounts/", True, 2),
+        ("/profile", "İptal", "/accounts/", True, 1),
+    ],
+)
+def test_account_form_navigation(client, page, label, target, signed_in, link_count):
+    """TG-165: Geri dönüş ve iptal bağlantıları GET ile erişilebilir olmalıdır."""
+    if signed_in:
+        credentials = {"email": "navigation@example.com", "password": "Password123"}
+        registration = client.post(
+            "/accounts/register", json={**credentials, "terms_accepted": True}
+        )
+        assert registration.status_code == 201
+        assert client.post("/accounts/login", json=credentials).status_code == 200
+
+    headers = {"Accept": "text/html"}
+    response = client.get(f"/accounts{page}", headers=headers)
+    assert response.status_code == 200
+
+    links = re.findall(
+        rf'<a\s+href="([^"]+)"[^>]*>\s*{re.escape(label)}\s*</a>',
+        response.get_data(as_text=True),
+    )
+    assert links == [target] * link_count
+
+    destination = client.get(target, headers=headers)
+    assert destination.status_code == 200
+    assert destination.mimetype == "text/html"
 
 
 def test_logout_confirm_and_post_flow(client):
@@ -736,6 +818,58 @@ def test_profile_and_edit_flow(client):
         json={"first_name": "", "last_name": "Kaya"},
     )
     assert res_bad.status_code == 400
+
+
+@pytest.mark.parametrize(
+    ("role", "role_label", "is_student", "student_number"),
+    [
+        ("participant", "Katılımcı", True, "120501099"),
+        ("participant", "Katılımcı", True, None),
+        ("organizer", "Organizatör", False, None),
+        ("admin", "Yönetici", False, None),
+    ],
+)
+def test_profile_displays_account_details(
+    client, app, role, role_label, is_student, student_number
+):
+    """TG-167: Profil, hesap bilgilerini ve kayıtlı öğrenci beyanını gösterir."""
+    credentials = {"email": "deniz.kaya@example.com", "password": "Password123"}
+    payload = {
+        **credentials,
+        "terms_accepted": True,
+        "first_name": "Deniz",
+        "last_name": "Kaya",
+        "role": role,
+        "is_student": is_student,
+        "student_number": student_number,
+    }
+    if role == "admin":
+        with app.app_context():
+            register_user(**payload)
+    else:
+        assert client.post("/accounts/register", json=payload).status_code == 201
+    assert client.post("/accounts/login", json=credentials).status_code == 200
+
+    response = client.get("/accounts/profile", headers={"Accept": "text/html"})
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "<h1>Deniz Kaya</h1>" in html
+    assert f"<p>{credentials['email']}</p>" in html
+    assert f'value="{role_label}"' in html
+    assert "<dt>Öğrenci statüsü</dt>" in html
+    assert ('class="student-badge">Öğrenci Hesabı<' in html) == is_student
+    assert ("Kayıt beyanı" in html) == is_student
+    assert ("Öğrenci beyanı yok" in html) == (not is_student)
+    assert ("Öğrenci no." in html) == (student_number is not None)
+    if student_number is not None:
+        assert f"Öğrenci no. {student_number}" in html
+
+
+def test_profile_requires_login_for_html_requests(client):
+    """TG-167: Misafirin profil isteği mevcut 401 yanıtını alır."""
+    response = client.get("/accounts/profile", headers={"Accept": "text/html"})
+    assert response.status_code == 401
+    assert response.get_json() == {"error": "Oturum açılmamış."}
 
 
 def test_settings_and_change_password_endpoint(client):
@@ -1121,3 +1255,380 @@ def test_preferences_invalid_error_handling(client, monkeypatch):
     assert res.status_code == 400
     assert "Simüle edilen hata" in res.get_json()["error"]
 
+
+
+@pytest.mark.parametrize("payload_type", ["json", "data"])
+def test_registration_cannot_self_approve_organizer(client, app, payload_type):
+    """TG-178: İstemcinin onay alanı kayıt sırasında yetki veremez."""
+    credentials = {"email": "new-organizer@example.com", "password": "Password123"}
+    response = client.post(
+        "/accounts/register",
+        **{payload_type: {**credentials, "role": "organizer", "organizer_approved": 1}},
+    )
+    assert response.status_code == 201
+    user_id = response.get_json()["user"]["id"]
+    with app.app_context():
+        from app.accounts.services import is_approved_organizer
+
+        db = get_db()
+        row = db.execute("SELECT organizer_approved FROM users WHERE id = ?", (user_id,)).fetchone()
+        assert row["organizer_approved"] == 0
+        assert is_approved_organizer(user_id) is False
+    assert client.post("/accounts/login", json=credentials).status_code == 200
+    assert client.get("/events/create").status_code == 403
+    response = client.post(
+        "/accounts/profile/edit",
+        json={"first_name": "Deniz", "last_name": "Kaya", "organizer_approved": 1},
+    )
+    assert response.status_code == 200
+    with app.app_context():
+        assert is_approved_organizer(user_id) is False
+        get_db().execute("UPDATE users SET organizer_approved = 1 WHERE id = ?", (user_id,))
+        get_db().commit()
+        assert is_approved_organizer(user_id) is True
+    assert client.get("/events/create").status_code == 200
+
+
+def test_init_db_migrates_users_without_losing_related_data(app):
+    """TG-178: init-db mevcut kullanıcıyı ve etkinliğini koruyarak sütunu ekler."""
+    from app.core.db import init_db
+
+    with app.app_context():
+        db = get_db()
+        db.execute("ALTER TABLE users DROP COLUMN organizer_approved")
+        db.execute(
+            "INSERT INTO users (id, email, password_hash, role, is_student, student_number) "
+            "VALUES (42, 'existing@example.com', 'original-hash', 'organizer', 1, '123')"
+        )
+        db.execute("INSERT INTO venues VALUES (1, 'Salon', 'Adres', 100)")
+        db.execute(
+            "INSERT INTO events (id, title, category, venue_id, start_time, end_time, "
+            "capacity, organizer_id) VALUES (1, 'Etkinlik', 'Eğitim', 1, "
+            "'2027-01-01T10:00', '2027-01-01T12:00', 50, 42)"
+        )
+        db.commit()
+        user_before = dict(db.execute("SELECT * FROM users").fetchone())
+        event_before = dict(db.execute("SELECT * FROM events").fetchone())
+        init_db()
+        init_db()
+        after = dict(db.execute("SELECT * FROM users").fetchone())
+        assert after.pop("organizer_approved") == 0
+        assert after == user_before
+        assert dict(db.execute("SELECT * FROM events").fetchone()) == event_before
+        assert not db.execute("PRAGMA foreign_key_check").fetchall()
+        db.execute("UPDATE users SET organizer_approved = 1 WHERE id = 42")
+        db.commit()
+        init_db()
+        assert db.execute("SELECT organizer_approved FROM users").fetchone()[0] == 1
+
+
+@pytest.fixture
+def organizer_approval_data(app):
+    from app.accounts.services import hash_password
+
+    with app.app_context():
+        db = get_db()
+        password_hash = hash_password("Password123")
+        db.executemany(
+            "INSERT INTO users (id, first_name, last_name, email, password_hash, role, "
+            "organizer_approved) VALUES (?, 'Deniz', 'Kaya', ?, ?, ?, ?)",
+            [
+                (1, "admin@example.com", password_hash, "admin", 0),
+                (2, "pending@example.com", password_hash, "organizer", 0),
+                (3, "participant@example.com", password_hash, "participant", 0),
+                (4, "approved@example.com", password_hash, "organizer", 1),
+            ],
+        )
+        db.execute("INSERT INTO venues VALUES (1, 'Salon', 'Adres', 100)")
+        db.execute(
+            "INSERT INTO events (id, title, category, venue_id, start_time, end_time, "
+            "capacity, organizer_id) VALUES (1, 'Etkinlik', 'Eğitim', 1, "
+            "'2027-01-01T10:00', '2027-01-01T12:00', 50, 2)"
+        )
+        db.commit()
+
+
+@pytest.fixture
+def organizer_admin_client(client, organizer_approval_data):
+    response = client.post(
+        "/accounts/login", json={"email": "admin@example.com", "password": "Password123"}
+    )
+    assert response.status_code == 200
+    return client
+
+
+def organizer_form_token(client):
+    response = client.get("/accounts/admin/organizers")
+    assert response.status_code == 200
+    return re.search(r'name="csrf_token" value="([^"]+)"', response.get_data(as_text=True))[1]
+
+
+def test_admin_lists_only_pending_organizers(organizer_admin_client):
+    response = organizer_admin_client.get("/accounts/admin/organizers")
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "pending@example.com" in html
+    assert "Deniz Kaya" in html
+    assert "approved@example.com" not in html
+    assert "participant@example.com" not in html
+    assert "admin@example.com" not in html
+    assert 'action="/accounts/admin/organizers/2/approve"' in html
+    assert 'method="post"' in html
+    home = organizer_admin_client.get("/accounts/", headers={"Accept": "text/html"})
+    assert 'href="/accounts/admin/organizers"' in home.get_data(as_text=True)
+
+
+@pytest.mark.parametrize("role,user_id,status", [(None, None, 401), ("organizer", 2, 403),
+                                                ("participant", 3, 403)])
+@pytest.mark.parametrize("method,path", [
+    ("get", "/accounts/admin/organizers"),
+    ("post", "/accounts/admin/organizers/2/approve"),
+])
+def test_approval_routes_require_admin(client, organizer_approval_data, role, user_id, status,
+                                       method, path):
+    if role:
+        with client.session_transaction() as session:
+            session["user_id"] = user_id
+            session["user_role"] = role
+    response = getattr(client, method)(path)
+    assert response.status_code == status
+
+
+def test_admin_approval_preserves_other_user_and_event_data(organizer_admin_client, app):
+    with app.app_context():
+        users_before = [dict(row) for row in get_db().execute("SELECT * FROM users ORDER BY id")]
+        events_before = [dict(row) for row in get_db().execute("SELECT * FROM events")]
+    token = organizer_form_token(organizer_admin_client)
+    for _ in range(2):
+        response = organizer_admin_client.post(
+            "/accounts/admin/organizers/2/approve", data={"csrf_token": token}
+        )
+        assert response.status_code == 303
+        assert response.headers["Location"] == "/accounts/admin/organizers"
+    with app.app_context():
+        users_before[1]["organizer_approved"] = 1
+        users_after = [dict(row) for row in get_db().execute("SELECT * FROM users ORDER BY id")]
+        assert users_after == users_before
+        assert [dict(row) for row in get_db().execute("SELECT * FROM events")] == events_before
+        assert not get_db().execute("PRAGMA foreign_key_check").fetchall()
+    html = organizer_admin_client.get("/accounts/admin/organizers").get_data(as_text=True)
+    assert "Onay bekleyen organizatör bulunmuyor." in html
+
+
+@pytest.mark.parametrize("token", [None, "wrong-token", "geçersiz"])
+def test_approval_rejects_bad_csrf(organizer_admin_client, app, token):
+    organizer_form_token(organizer_admin_client)
+    response = organizer_admin_client.post(
+        "/accounts/admin/organizers/2/approve", data={} if token is None else {"csrf_token": token}
+    )
+    assert response.status_code == 403
+    with app.app_context():
+        row = get_db().execute("SELECT organizer_approved FROM users WHERE id=2").fetchone()
+        assert row[0] == 0
+
+
+def test_approval_rejects_token_from_another_session(organizer_admin_client, app):
+    token = organizer_form_token(organizer_admin_client)
+    other = app.test_client()
+    assert other.post(
+        "/accounts/login", json={"email": "admin@example.com", "password": "Password123"}
+    ).status_code == 200
+    organizer_form_token(other)
+    assert other.post(
+        "/accounts/admin/organizers/2/approve", data={"csrf_token": token}
+    ).status_code == 403
+
+
+def test_approval_get_cannot_change_status(organizer_admin_client, app):
+    response = organizer_admin_client.get("/accounts/admin/organizers/2/approve")
+    assert response.status_code == 405
+    with app.app_context():
+        row = get_db().execute("SELECT organizer_approved FROM users WHERE id=2").fetchone()
+        assert row[0] == 0
+
+
+@pytest.mark.parametrize("role", ["organizer", "participant", None])
+def test_stale_admin_session_is_denied(organizer_admin_client, app, role):
+    token = organizer_form_token(organizer_admin_client)
+    with app.app_context():
+        db = get_db()
+        if role is None:
+            db.execute("DELETE FROM users WHERE id=1")
+        else:
+            db.execute("UPDATE users SET role=? WHERE id=1", (role,))
+        db.commit()
+    expected = 401 if role is None else 403
+    assert organizer_admin_client.post(
+        "/accounts/admin/organizers/2/approve", data={"csrf_token": token}
+    ).status_code == expected
+    assert organizer_admin_client.get("/accounts/admin/organizers").status_code == expected
+    with app.app_context():
+        row = get_db().execute("SELECT organizer_approved FROM users WHERE id=2").fetchone()
+        assert row[0] == 0
+
+
+@pytest.mark.parametrize("user_id", [1, 3, 999, 2**63])
+def test_approval_rejects_non_organizer_targets(organizer_admin_client, user_id):
+    token = organizer_form_token(organizer_admin_client)
+    assert organizer_admin_client.post(
+        f"/accounts/admin/organizers/{user_id}/approve", data={"csrf_token": token}
+    ).status_code == 404
+
+
+@pytest.mark.parametrize("payload_type", ["json", "data"])
+def test_public_registration_cannot_create_admin(client, app, payload_type):
+    payload = {"email": "attack@example.com", "password": "Password123", "role": "admin"}
+    response = client.post(
+        "/accounts/register",
+        **{payload_type: payload},
+    )
+    assert response.status_code == 403
+    with app.app_context():
+        assert get_db().execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0
+
+
+
+def test_failed_approval_rolls_back_changes(organizer_admin_client, app, monkeypatch):
+    import sqlite3
+
+    def fail_after_update(user_id, admin_id):
+        get_db().execute("UPDATE users SET organizer_approved=1 WHERE id=?", (user_id,))
+        raise sqlite3.OperationalError("Simulated database failure")
+
+    token = organizer_form_token(organizer_admin_client)
+    monkeypatch.setattr("app.accounts.routes.approve_organizer", fail_after_update)
+    response = organizer_admin_client.post(
+        "/accounts/admin/organizers/2/approve", data={"csrf_token": token}
+    )
+    assert response.status_code == 503
+    with app.app_context():
+        row = get_db().execute("SELECT organizer_approved FROM users WHERE id=2").fetchone()
+        assert row[0] == 0
+
+
+@pytest.mark.parametrize("page", ["profile", "dashboard"])
+@pytest.mark.parametrize("role,approval", [
+    ("organizer", 0), ("organizer", 1),
+    ("participant", 0), ("participant", 1), ("admin", 0), ("admin", 1),
+])
+def test_organizer_status_uses_current_database_user(client, app, page, role, approval):
+    """TG-180: İki ekran da göstergeyi güncel kayıtlı role ve onaya göre gösterir."""
+    with app.app_context():
+        db = get_db()
+        db.execute(
+            "INSERT INTO users (id, first_name, email, password_hash, role, organizer_approved) "
+            "VALUES (1, 'Deniz', 'deniz@example.com', 'hash', ?, ?)", (role, approval),
+        )
+        db.commit()
+    with client.session_transaction() as session:
+        session["user_id"] = 1
+        # Oturumdaki kasıtlı eski rol ve onay değerleri gösterimi belirlememeli.
+        session["user_role"] = "participant" if role == "organizer" else "organizer"
+        session["organizer_approved"] = not bool(approval)
+    response = client.get(f"/accounts/{page}", headers={"Accept": "text/html"})
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert ("Organizatör onayı" in html) == (role == "organizer")
+    assert ("<strong>Onay Bekliyor</strong>" in html) == (role == "organizer" and approval == 0)
+    assert ("<strong>Onaylandı</strong>" in html) == (role == "organizer" and approval == 1)
+
+
+@pytest.mark.parametrize("page", ["profile", "dashboard"])
+def test_organizer_status_refreshes_without_login(client, app, page):
+    with app.app_context():
+        user = register_user("pending@example.com", "Password123", role="organizer")
+    assert client.post(
+        "/accounts/login", json={"email": "pending@example.com", "password": "Password123"}
+    ).status_code == 200
+    assert "Onay Bekliyor" in client.get(f"/accounts/{page}").get_data(as_text=True)
+    with app.app_context():
+        db = get_db()
+        db.execute("UPDATE users SET organizer_approved=1 WHERE id=?", (user["id"],))
+        db.commit()
+    html = client.get(f"/accounts/{page}").get_data(as_text=True)
+    assert "<strong>Onaylandı</strong>" in html
+    assert "Onay Bekliyor" not in html
+
+
+@pytest.mark.parametrize("page", ["profile", "dashboard"])
+def test_organizer_status_pages_require_login(client, page):
+    response = client.get(f"/accounts/{page}", headers={"Accept": "text/html"})
+    assert response.status_code == 401
+    assert response.get_json() == {"error": "Oturum açılmamış."}
+
+
+def test_approval_field_json_compatibility(client):
+    credentials = {"email": "json-approval@example.com", "password": "Password123"}
+    registered = client.post("/accounts/register", json={**credentials, "role": "organizer"})
+    assert registered.status_code == 201
+    assert "organizer_approved" not in registered.get_json()["user"]
+    logged_in = client.post("/accounts/login", json=credentials)
+    assert logged_in.status_code == 200
+    assert "organizer_approved" not in logged_in.get_json()["user"]
+    assert "organizer_approved" not in client.get("/accounts/me").get_json()["user"]
+    for page in ("profile", "dashboard", "settings"):
+        response = client.get(f"/accounts/{page}", headers={"Accept": "application/json"})
+        assert response.status_code == 200
+        user = response.get_json()["user"]
+        assert user["email"] == credentials["email"]
+        assert "organizer_approved" not in user
+        assert "password_hash" not in user
+    edited = client.post(
+        "/accounts/profile/edit", json={"first_name": "Deniz", "last_name": "Kaya"}
+    )
+    assert edited.status_code == 200
+    assert "organizer_approved" not in edited.get_json()["user"]
+
+
+
+def test_profile_update_cannot_modify_any_organizer_approval(client, app):
+    """TG-180: İstemcinin hedef kimliği ve onay alanı güncelleme yetkisi veremez."""
+    credentials = {"email": "owner@example.com", "password": "Password123"}
+    owner = client.post("/accounts/register", json={**credentials, "role": "organizer"})
+    assert owner.status_code == 201
+    owner_id = owner.get_json()["user"]["id"]
+    with app.app_context():
+        other = register_user("other@example.com", "Password123", role="organizer")
+    assert client.post("/accounts/login", json=credentials).status_code == 200
+    response = client.post(
+        "/accounts/profile/edit",
+        json={
+            "first_name": "Deniz", "last_name": "Kaya", "organizer_approved": 1,
+            "user_id": other["id"], "id": other["id"], "role": "admin",
+        },
+    )
+    assert response.status_code == 200
+    with app.app_context():
+        rows = get_db().execute(
+            "SELECT id, first_name, role, organizer_approved FROM users ORDER BY id"
+        ).fetchall()
+        assert [row["id"] for row in rows] == [owner_id, other["id"]]
+        assert [row["organizer_approved"] for row in rows] == [0, 0]
+        assert [row["role"] for row in rows] == ["organizer", "organizer"]
+        assert rows[0]["first_name"] == "Deniz"
+        assert rows[1]["first_name"] == ""
+
+
+
+def test_admin_approval_refreshes_existing_organizer_session(organizer_admin_client, app):
+    """TG-180: Gerçek admin POST'u açık organizatör oturumunun iki ekranına yansır."""
+    organizer = app.test_client()
+    assert organizer.post(
+        "/accounts/login", json={"email": "pending@example.com", "password": "Password123"}
+    ).status_code == 200
+    pages = ("/accounts/profile", "/accounts/dashboard")
+    for page in pages:
+        assert "<strong>Onay Bekliyor</strong>" in organizer.get(page).get_data(as_text=True)
+    token = organizer_form_token(organizer_admin_client)
+    response = organizer_admin_client.post(
+        "/accounts/admin/organizers/2/approve", data={"csrf_token": token}
+    )
+    assert response.status_code == 303
+    for page in pages:
+        html = organizer.get(page).get_data(as_text=True)
+        assert "<strong>Onaylandı</strong>" in html
+        assert "Onay Bekliyor" not in html
+        data = organizer.get(page, headers={"Accept": "application/json"}).get_json()
+        assert "organizer_approved" not in data["user"]
+    with organizer.session_transaction() as session:
+        assert session["user_id"] == 2

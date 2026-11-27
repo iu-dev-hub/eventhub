@@ -1,0 +1,50 @@
+[
+  {
+    "id": 1,
+    "first_name": "Ahmet",
+    "last_name": "Yılmaz",
+    "email": "ahmet.yilmaz@itu.edu.tr",
+    "role": "organizer",
+    "is_student": false,
+    "student_number": null,
+    "notify_email": true,
+    "avatar_url": "/avatars/ahmet_yilmaz.jpg",
+    "created_at": "2024-01-15T09:30:00Z"
+  },
+  {
+    "id": 2,
+    "first_name": "Ayşe",
+    "last_name": "Kaya",
+    "email": "ayse.kaya@itu.edu.tr",
+    "role": "participant",
+    "is_student": true,
+    "student_number": "2019123456",
+    "notify_email": true,
+    "avatar_url": "/avatars/ayse_kaya.jpg",
+    "created_at": "2024-01-16T10:45:00Z"
+  },
+  {
+    "id": 3,
+    "first_name": "Mehmet",
+    "last_name": "Demir",
+    "email": "mehmet.demir@itu.edu.tr",
+    "role": "participant",
+    "is_student": true,
+    "student_number": "2019123457",
+    "notify_email": false,
+    "avatar_url": "/avatars/mehmet_demir.jpg",
+    "created_at": "2024-01-17T14:20:00Z"
+  },
+  {
+    "id": 4,
+    "first_name": "Fatma",
+    "last_name": "Şahin",
+    "email": "fatma.sahin@itu.edu.tr",
+    "role": "organizer",
+    "is_student": false,
+    "student_number": null,
+    "notify_email": true,
+    "avatar_url": "/avatars/fatma_sahin.jpg",
+    "created_at": "2024-01-18T16:35:00Z"
+  }
+]

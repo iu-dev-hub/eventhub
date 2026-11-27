@@ -1,6 +1,25 @@
 {% extends "base.html" %}
 {% block title %}Hesaplar{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='accounts.css') }}">
+{% endblock %}
 {% block content %}
 <h1>Hesap Yönetimi</h1>
 <p>EventHub kullanıcı kaydı ve hesap yönetimi.</p>
+<nav class="account-home-actions" aria-label="Hesap işlemleri">
+  {% if session.get('user_id') %}
+    <a class="btn btn-primary" href="{{ url_for('accounts.profile') }}">Profilim</a>
+    <a class="btn btn-secondary" href="{{ url_for('accounts.settings') }}">Ayarlar</a>
+    <a class="btn btn-secondary" href="{{ url_for('accounts.change_password_route') }}">Şifre Değiştir</a>
+  {% else %}
+    <a class="btn btn-primary" href="{{ url_for('accounts.login') }}">Giriş Yap</a>
+    <a class="btn btn-secondary" href="{{ url_for('accounts.register') }}">Kayıt Ol</a>
+    <a class="btn btn-secondary" href="{{ url_for('accounts.forgot_password') }}">Şifremi Unuttum</a>
+  {% endif %}
+</nav>
+{% if session.get('user_role') == 'admin' %}
+<p>
+  <a class="btn btn-outline" href="{{ url_for('accounts.admin_organizers') }}">Organizatör Onayları</a>
+</p>
+{% endif %}
 {% endblock %}
