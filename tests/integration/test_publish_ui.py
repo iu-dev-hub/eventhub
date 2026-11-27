@@ -227,8 +227,7 @@ def test_publish_failure_already_published_shows_flash_message(seeded, client):
     )
     assert response.status_code == 200
 
-    page = client.get("/events/")
-    html = page.get_data(as_text=True)
+    html = response.get_data(as_text=True)
     # Servisin gerçek hata mesajı: "Yalnızca taslak etkinlikler yayınlanabilir."
     assert "yalnızca taslak etkinlikler yayınlanabilir" in html.lower()
 
@@ -245,8 +244,7 @@ def test_publish_failure_capacity_exceeded_shows_flash_message(seeded, client):
     )
     assert response.status_code == 200
 
-    page = client.get("/events/")
-    html = page.get_data(as_text=True)
+    html = response.get_data(as_text=True)
     # Servisin gerçek hata mesajı: "Etkinlik kapasitesi salon kapasitesini aşamaz."
     assert "etkinlik kapasitesi salon kapasitesini aşamaz" in html.lower()
 
@@ -263,8 +261,7 @@ def test_publish_failure_missing_fields_shows_flash_message(seeded, client):
     )
     assert response.status_code == 200
 
-    page = client.get("/events/")
-    html = page.get_data(as_text=True)
+    html = response.get_data(as_text=True)
     # Servisin gerçek hata mesajı: "Etkinlik başlığı zorunludur."
     assert "etkinlik başlığı zorunludur" in html.lower()
 
@@ -281,8 +278,7 @@ def test_publish_failure_time_conflict_shows_flash_message(seeded, client):
     )
     assert response.status_code == 200
 
-    page = client.get("/events/")
-    html = page.get_data(as_text=True)
+    html = response.get_data(as_text=True)
     # Servisin gerçek hata mesajı: "Aynı salonda bu saatlerde yayınlanmış başka bir etkinlik var."
     assert "aynı salonda bu saatlerde yayınlanmış başka bir etkinlik var" in html.lower()
 

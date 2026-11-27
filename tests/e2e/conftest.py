@@ -26,8 +26,7 @@ def base_url(tmp_path_factory):
         init_db()
         db = get_db()
         # TG-121: etkinlik oluşturmak için yönetici onaylı organizatör gerekir (BR-1.5).
-        # Accounts'ta kalıcı onay mekanizması henüz yok; onay sütunu test veritabanına eklenir.
-        db.execute("ALTER TABLE users ADD COLUMN organizer_approved BOOLEAN NOT NULL DEFAULT 0")
+        # Onay sütunu gerçek şemadan gelir; yalnızca E2E hesabı onaylanır.
         user = register_user(ORGANIZER_EMAIL, ORGANIZER_PASSWORD, role="organizer")
         db.execute("UPDATE users SET organizer_approved = 1 WHERE id = ?", (user["id"],))
         # E2E testleri için test salonu (id=1, kapasite 100)

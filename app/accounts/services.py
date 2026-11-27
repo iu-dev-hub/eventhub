@@ -114,19 +114,24 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 
 def ensure_user_columns(db) -> None:
-    """Ensures backwards compatibility if table was created in Sprint 1/2."""
+    """Eksik kullanıcı sütunlarını verileri ve çağıranın işlemini koruyarak ekler."""
+    columns = {
+        "first_name": "TEXT NOT NULL DEFAULT ''",
+        "last_name": "TEXT NOT NULL DEFAULT ''",
+        "is_student": "BOOLEAN NOT NULL DEFAULT 0",
+        "student_number": "TEXT DEFAULT NULL",
+        "notify_email": "BOOLEAN NOT NULL DEFAULT 1",
+        "avatar_url": "TEXT DEFAULT NULL",
+        "organizer_approved": "BOOLEAN NOT NULL DEFAULT 0",
+    }
+    db.execute("SAVEPOINT accounts_user_columns")
     try:
-        rows = db.execute("PRAGMA table_info(users)").fetchall()
-        cols = {row["name"] for row in rows}
-        if cols and "first_name" not in cols:
-            db.execute("ALTER TABLE users ADD COLUMN first_name TEXT NOT NULL DEFAULT ''")
-            db.execute("ALTER TABLE users ADD COLUMN last_name TEXT NOT NULL DEFAULT ''")
-            db.execute("ALTER TABLE users ADD COLUMN is_student BOOLEAN NOT NULL DEFAULT 0")
-            db.execute("ALTER TABLE users ADD COLUMN student_number TEXT DEFAULT NULL")
-            db.execute("ALTER TABLE users ADD COLUMN notify_email BOOLEAN NOT NULL DEFAULT 1")
-            db.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT DEFAULT NULL")
-            db.commit()
-
+        existing = {row["name"] for row in db.execute("PRAGMA table_info(users)")}
+        if not existing:
+            raise RuntimeError("Kullanıcı tablosu bulunamadı; önce veritabanını başlatın.")
+        for name, definition in columns.items():
+            if name not in existing:
+                db.execute(f"ALTER TABLE users ADD COLUMN {name} {definition}")
         db.execute(
             "CREATE TABLE IF NOT EXISTS password_resets ("
             "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, "
@@ -135,9 +140,68 @@ def ensure_user_columns(db) -> None:
             "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, "
             "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)"
         )
-        db.commit()
     except Exception:
-        pass
+        db.execute("ROLLBACK TO SAVEPOINT accounts_user_columns")
+        db.execute("RELEASE SAVEPOINT accounts_user_columns")
+        raise
+    db.execute("RELEASE SAVEPOINT accounts_user_columns")
+
+
+def is_approved_organizer(user_id, db=None) -> bool:
+    """BR-1.5 / TG-178: Kayıtlı rol ve onayı verilen bağlantıda salt okunur denetler."""
+    if (
+        isinstance(user_id, bool)
+        or not isinstance(user_id, int)
+        or user_id < 1
+        or user_id > 2**63 - 1
+    ):
+        return False
+    if db is None:
+        db = get_db()
+    columns = {row["name"] for row in db.execute("PRAGMA table_info(users)")}
+    if "organizer_approved" not in columns:
+        return False
+    row = db.execute(
+        "SELECT role, organizer_approved FROM users WHERE id = ? LIMIT 1", (user_id,)
+    ).fetchone()
+    return row is not None and row["role"] == "organizer" and row["organizer_approved"] == 1
+
+
+def list_pending_organizers():
+    """TG-179: Onay bekleyen organizatörlerin ekran için gerekli bilgilerini okur."""
+    rows = get_db().execute(
+        "SELECT id, first_name, last_name, email FROM users "
+        "WHERE role = 'organizer' AND organizer_approved = 0 ORDER BY id"
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def approve_organizer(user_id, admin_id):
+    """TG-179: Güncel admin yetkisiyle onaylar; işlemi çağıran tamamlar."""
+    if (
+        isinstance(admin_id, bool)
+        or not isinstance(admin_id, int)
+        or not 0 < admin_id < 2**63
+    ):
+        raise PermissionError("Bu işlem için yetkiniz bulunmamaktadır.")
+    if isinstance(user_id, bool) or not isinstance(user_id, int) or not 0 < user_id < 2**63:
+        raise LookupError("Organizatör bulunamadı.")
+    db = get_db()
+    cursor = db.execute(
+        "UPDATE users SET organizer_approved = 1 "
+        "WHERE id = ? AND role = 'organizer' AND organizer_approved = 0 "
+        "AND EXISTS (SELECT 1 FROM users WHERE id = ? AND role = 'admin')",
+        (user_id, admin_id),
+    )
+    admin = db.execute("SELECT role FROM users WHERE id = ?", (admin_id,)).fetchone()
+    if admin is None or admin["role"] != "admin":
+        raise PermissionError("Bu işlem için yetkiniz bulunmamaktadır.")
+    target = db.execute(
+        "SELECT role, organizer_approved FROM users WHERE id = ?", (user_id,)
+    ).fetchone()
+    if target is None or target["role"] != "organizer":
+        raise LookupError("Organizatör bulunamadı.")
+    return cursor.rowcount == 1
 
 
 def is_email_registered(email: str) -> bool:
@@ -304,11 +368,14 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
     }
 
 
-def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
+def get_user_by_id(
+    user_id: int, *, include_organizer_approval: bool = False
+) -> Optional[Dict[str, Any]]:
     """Fetches user information by user ID.
 
     Args:
         user_id: The integer ID of the user.
+        include_organizer_approval: Profil/panel HTML gösterimi için onay alanını ekler.
 
     Returns:
         Dictionary containing user information or None if not found.
@@ -319,7 +386,7 @@ def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
     ensure_user_columns(db)
     query = (
         "SELECT id, first_name, last_name, email, role, is_student, "
-        "student_number, notify_email, avatar_url, created_at "
+        "student_number, notify_email, avatar_url, created_at, organizer_approved "
         "FROM users WHERE id = ? LIMIT 1"
     )
     row = db.execute(query, (user_id,)).fetchone()
@@ -328,6 +395,9 @@ def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
     res = dict(row)
     res["is_student"] = bool(res.get("is_student", False))
     res["notify_email"] = bool(res.get("notify_email", True))
+    organizer_approved = res.pop("organizer_approved")
+    if include_organizer_approval:
+        res["organizer_approved"] = organizer_approved == 1
     return res
 
 
