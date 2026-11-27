@@ -225,48 +225,58 @@ def test_reserve_seats_and_payment_redirect_success(mock_api_dir: Path):
     assert retry.error_code == "SEAT_UNAVAILABLE"
 
 
-def test_max_4_tickets_per_user_across_multiple_orders_br_3_1(mock_api_dir: Path):
-    """BR-3.1: Kullanıcı tek seferde veya parçalı siparişlerde toplam 4 bileti aşamaz."""
+def test_max_2_tickets_per_user_across_multiple_orders_br_3_1(mock_api_dir: Path):
+    """BR-3.1: Kullanıcı tek seferde veya parçalı siparişlerde toplam 2 bileti aşamaz."""
     service = ParticipationService(api_dir=mock_api_dir)
     now_dt = datetime(2026, 6, 1, 10, 0, 0, tzinfo=timezone.utc)
 
-    # Tek siparişte 5 koltuk reddedilmeli
-    res_five = service.reserve_seats_for_purchase(
-        event_id=1,
-        seat_codes=["A2", "A3", "A4", "A5", "A6"],
-        user_id=77,
-        now=now_dt,
-    )
-    assert res_five.success is False
-    assert res_five.error_code == "MAX_TICKETS_EXCEEDED"
-
-    # İlk siparişte 3 koltuk başarılı olmalı
+    # Tek siparişte 3 koltuk reddedilmeli
     res_three = service.reserve_seats_for_purchase(
         event_id=1,
         seat_codes=["A2", "A3", "A4"],
         user_id=77,
         now=now_dt,
     )
-    assert res_three.success is True
+    assert res_three.success is False
+    assert res_three.error_code == "MAX_TICKETS_EXCEEDED"
 
-    # Aynı kullanıcının 2 koltuk daha almaya çalışması (3 + 2 = 5 > 4) reddedilmeli
+    # İlk siparişte 1 koltuk başarılı olmalı
+    res_one = service.reserve_seats_for_purchase(
+        event_id=1,
+        seat_codes=["A2"],
+        user_id=77,
+        now=now_dt,
+    )
+    assert res_one.success is True
+
+    # Aynı kullanıcının 2 koltuk daha almaya çalışması (1 + 2 = 3 > 2) reddedilmeli
     res_two_more = service.reserve_seats_for_purchase(
         event_id=1,
-        seat_codes=["A5", "A6"],
+        seat_codes=["A3", "A4"],
         user_id=77,
         now=now_dt,
     )
     assert res_two_more.success is False
     assert res_two_more.error_code == "MAX_TICKETS_EXCEEDED"
 
-    # Ancak 1 koltuk daha alması (3 + 1 = 4) kabul edilmeli
-    res_fourth = service.reserve_seats_for_purchase(
+    # 1 koltuk daha alması (1 + 1 = 2) kabul edilmeli
+    res_second = service.reserve_seats_for_purchase(
         event_id=1,
-        seat_codes=["A5"],
+        seat_codes=["A3"],
         user_id=77,
         now=now_dt,
     )
-    assert res_fourth.success is True
+    assert res_second.success is True
+
+    # 3. koltuk denemesi (2 + 1 = 3 > 2) reddedilmeli
+    res_third = service.reserve_seats_for_purchase(
+        event_id=1,
+        seat_codes=["A4"],
+        user_id=77,
+        now=now_dt,
+    )
+    assert res_third.success is False
+    assert res_third.error_code == "MAX_TICKETS_EXCEEDED"
 
 
 def test_empty_sold_and_sales_closed_rejections(mock_api_dir: Path):

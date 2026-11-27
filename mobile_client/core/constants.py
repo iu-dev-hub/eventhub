@@ -25,7 +25,7 @@ TICKET_STATUSES = {
 }
 
 # Business rule constants
-MAX_TICKETS_PER_EVENT = 4  # BR-3.1
+MAX_TICKETS_PER_EVENT = 2  # BR-3.1 (Ürün ekibi notu: en fazla 2 bilet)
 EARLY_BIRD_DAYS_THRESHOLD = 14  # BR-4.1
 REFUND_7DAYS_THRESHOLD = 7  # BR-4.4
 REFUND_2_6DAYS_THRESHOLD = 2  # BR-4.4
