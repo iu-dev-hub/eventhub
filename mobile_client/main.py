@@ -1,4 +1,4 @@
-"""EventHub mobile client application entrypoint and navigation router (TG-160, TG-182)."""
+"""EventHub mobile client application entrypoint and navigation router (TG-160, TG-182, TG-184)."""
 
 from typing import Callable, Optional
 
@@ -11,7 +11,10 @@ from mobile_client.core.constants import (
 )
 from mobile_client.core.routes import (
     DEFAULT_ROUTE,
+    ROUTE_EVENT_DETAIL,
+    ROUTE_EVENTS,
     ROUTE_LOGIN,
+    ROUTE_PAYMENT,
     ROUTE_PROFILE,
     ROUTE_REGISTER,
     ROUTE_TICKETS,
@@ -20,10 +23,17 @@ from mobile_client.core.routes import (
     route_for_index,
 )
 from mobile_client.core.theme import DEFAULT_THEME
+from mobile_client.models.event import Event
 from mobile_client.services.auth_service import AuthResult, AuthService
+from mobile_client.services.participation_service import (
+    ParticipationService,
+    ReservationResult,
+)
 from mobile_client.views import (
+    build_event_detail_view,
     build_events_view,
     build_login_view,
+    build_payment_view,
     build_profile_view,
     build_register_view,
     build_tickets_view,
@@ -41,6 +51,12 @@ def build_view_for_route(
     on_logout: Optional[Callable[[], None]] = None,
     page: Optional[ft.Page] = None,
     initial_login_email: str = "",
+    selected_event_id: int = 1,
+    participation_service: Optional[ParticipationService] = None,
+    last_reservation: Optional[ReservationResult] = None,
+    on_event_click: Optional[Callable[[Event], None]] = None,
+    on_purchase_success: Optional[Callable[[ReservationResult], None]] = None,
+    on_back: Optional[Callable[[], None]] = None,
 ) -> ft.View:
     """Verilen rotaya karşılık gelen sayfa görünümünü oluşturur."""
     normalized = normalize_route(route)
@@ -68,7 +84,27 @@ def build_view_for_route(
             user=current_user,
             on_logout=on_logout,
         )
-    return build_events_view(on_nav_change=on_nav_change)
+    if normalized == ROUTE_EVENT_DETAIL:
+        current_user = auth_service.current_user if auth_service else None
+        return build_event_detail_view(
+            event_id=selected_event_id,
+            participation_service=participation_service,
+            on_nav_change=on_nav_change,
+            on_back=on_back,
+            on_purchase_success=on_purchase_success,
+            user_id=current_user.id if current_user else None,
+            is_student=bool(current_user.is_student) if current_user else False,
+        )
+    if normalized == ROUTE_PAYMENT:
+        return build_payment_view(
+            reservation=last_reservation,
+            on_nav_change=on_nav_change,
+            on_back=on_back,
+        )
+    return build_events_view(
+        on_nav_change=on_nav_change,
+        on_event_click=on_event_click,
+    )
 
 
 def main(page: ft.Page, auth_service: Optional[AuthService] = None) -> None:
@@ -76,7 +112,13 @@ def main(page: ft.Page, auth_service: Optional[AuthService] = None) -> None:
     page.title = DEFAULT_THEME.name
     page.bgcolor = DEFAULT_THEME.colors.surface
     service = auth_service or AuthService()
-    state = {"prefill_email": "", "prefs": None}
+    participation_service = ParticipationService()
+    state = {
+        "prefill_email": "",
+        "prefs": None,
+        "selected_event_id": 1,
+        "last_reservation": None,
+    }
 
     def _get_prefs() -> Optional[ft.SharedPreferences]:
         if state["prefs"] is None:
@@ -153,9 +195,23 @@ def main(page: ft.Page, auth_service: Optional[AuthService] = None) -> None:
                 on_logout=handle_logout,
                 page=page,
                 initial_login_email=state["prefill_email"],
+                selected_event_id=state["selected_event_id"],
+                participation_service=participation_service,
+                last_reservation=state["last_reservation"],
+                on_event_click=handle_event_click,
+                on_purchase_success=handle_purchase_success,
+                on_back=lambda: render_route(ROUTE_EVENTS),
             )
         )
         page.update()
+
+    def handle_event_click(event: Event) -> None:
+        state["selected_event_id"] = event.id
+        render_route(ROUTE_EVENT_DETAIL)
+
+    def handle_purchase_success(reservation: ReservationResult) -> None:
+        state["last_reservation"] = reservation
+        render_route(reservation.redirect_route or ROUTE_PAYMENT)
 
     def handle_nav_change(index: int) -> None:
         target_route = route_for_index(index)

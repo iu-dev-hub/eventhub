@@ -1,4 +1,4 @@
-"""Route definitions and navigation mapping for the mobile client (TG-160).
+"""Route definitions and navigation mapping for the mobile client (TG-160, TG-182, TG-184).
 
 Bu modül flet içe aktarmaz; böylece gezinme mantığı CI'da flet kurulmadan
 test edilebilir (mobile_client/README.md - test edilebilirlik kuralı).
@@ -9,11 +9,14 @@ ROUTE_TICKETS = "/tickets"
 ROUTE_PROFILE = "/profile"
 ROUTE_LOGIN = "/login"
 ROUTE_REGISTER = "/register"
+ROUTE_EVENT_DETAIL = "/event-detail"
+ROUTE_PAYMENT = "/payment"
 
 # Alt gezinme çubuğundaki sekme sırası (BottomNavBar ile aynı sırada olmalıdır).
 NAV_ROUTES = (ROUTE_EVENTS, ROUTE_TICKETS, ROUTE_PROFILE)
 AUTH_ROUTES = (ROUTE_LOGIN, ROUTE_REGISTER)
-VALID_ROUTES = (*NAV_ROUTES, *AUTH_ROUTES)
+DETAIL_FLOW_ROUTES = (ROUTE_EVENT_DETAIL, ROUTE_PAYMENT)
+VALID_ROUTES = (*NAV_ROUTES, *AUTH_ROUTES, *DETAIL_FLOW_ROUTES)
 
 DEFAULT_ROUTE = ROUTE_EVENTS
 
