@@ -87,9 +87,12 @@ def _migrate_tickets_event_fk(db: sqlite3.Connection) -> None:
 
 def init_db() -> None:
     """Şemayı oluşturur; tekrar çalıştırılabilir ve mevcut tabloları/verileri korur."""
+    from app.accounts.services import ensure_user_columns
+
     db = get_db()
     db.executescript(SCHEMA_FILE.read_text(encoding="utf-8"))
     db.commit()
+    ensure_user_columns(db)
     _migrate_tickets_event_fk(db)
 
 

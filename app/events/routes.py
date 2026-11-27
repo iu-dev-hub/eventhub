@@ -1,6 +1,6 @@
 from flask import flash, g, jsonify, redirect, render_template, request, session, url_for
 
-from app.accounts.security import login_required, role_required
+from app.accounts.security import role_required
 from app.core.db import get_db
 from app.events import bp, services
 
@@ -84,28 +84,49 @@ def create():
 
 
 @bp.route("/<int:event_id>", methods=["GET"])
-@login_required
 def event_detail(event_id):
-    """Kaydedilmiş etkinliği JSON döndürür; taslaklar yalnızca sahibine ve admine açıktır."""
-    event = services.get_event(get_db(), event_id)
+    """Etkinlik detayını rol bazlı görünürlük ve içerik pazarlığıyla HTML/JSON döner (TG-193)."""
+    user_id = session.get("user_id")
+    user_role = session.get("user_role")
+    event = services.get_event_detail(
+        get_db(),
+        event_id,
+        user_id=user_id,
+        user_role=user_role,
+    )
+    is_html = _wants_html()
     if event is None:
+        if is_html:
+            return render_template("events/not_found.html"), 404
         return jsonify({"error": "Etkinlik bulunamadı."}), 404
-    if event["status"] != "published" and not (
-        g.user_role == "admin" or event["organizer_id"] == g.user_id
-    ):
-        # Taslağın varlığını sızdırmamak için 404 döndürülür.
-        return jsonify({"error": "Etkinlik bulunamadı."}), 404
-    return jsonify(event)
+    if is_html:
+        return (
+            render_template(
+                "events/detail.html",
+                event=event,
+                user_role=user_role,
+                current_user_id=user_id,
+            ),
+            200,
+        )
+    return jsonify(event), 200
 
 
 def _wants_html():
     """İsteğin HTML yanıtı mı yoksa JSON yanıtı mı tercih ettiğini belirler."""
-    accept = request.headers.get("Accept", "")
-    if "application/json" in accept:
+    if not request.headers.get("Accept", "").strip():
         return False
-    if "text/html" in accept:
-        return True
-    return request.accept_mimetypes.best_match(["application/json", "text/html"]) == "text/html"
+    accept = request.accept_mimetypes
+    html_q = max(accept.quality("text/html"), accept.quality("application/xhtml+xml"))
+    json_q = accept.quality("application/json")
+    if html_q <= 0:
+        return False
+    if html_q != json_q:
+        return html_q > json_q
+    # Eşit q değerinde (örn. "text/html,*/*") medya türü özgüllüğünü Werkzeug belirler;
+    # aynı özgüllükte JSON ilk sırada olduğu için varsayılan JSON kalır.
+    best = accept.best_match(["application/json", "text/html", "application/xhtml+xml"])
+    return best in ("text/html", "application/xhtml+xml")
 
 
 @bp.route("/<int:event_id>/publish", methods=["POST"])

@@ -205,19 +205,24 @@ def test_publish_time_conflict_returns_conflict_409(seeded_db, client):
 
 
 def test_publish_time_conflict_html_redirect_and_flash(seeded_db, client):
-    """Tarayıcı isteğinde zaman çakışması durumunda flash mesajı üretilir ve yönlendirilir."""
+    """Tarayıcı isteğinde zaman çakışması flash mesajı üretir ve detaya yönlendirir."""
     login(client, ORGANIZER, "organizer")
     response = client.post(
         "/events/3/publish",
         headers={"Accept": "text/html"},
-        follow_redirects=True,
+        follow_redirects=False,
     )
-    assert response.status_code == 200
+    assert response.status_code == 302
+    assert response.headers["Location"] == "/events/3"
 
+    conflict_msg = "Aynı salonda bu saatlerde yayınlanmış başka bir etkinlik var."
     with client.session_transaction() as sess:
         flashes = sess.get("_flashes", [])
-        conflict_msg = "Aynı salonda bu saatlerde yayınlanmış başka bir etkinlik var."
         assert any(conflict_msg in f[1] for f in flashes)
+
+    detail_page = client.get("/events/3", headers={"Accept": "text/html"})
+    assert detail_page.status_code == 200
+    assert conflict_msg in detail_page.get_data(as_text=True)
 
 
 def test_publish_browser_multi_accept_header_html_flow(seeded_db, client):

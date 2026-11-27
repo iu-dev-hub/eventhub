@@ -7,11 +7,20 @@ test edilebilir (mobile_client/README.md - test edilebilirlik kuralı).
 ROUTE_EVENTS = "/"
 ROUTE_TICKETS = "/tickets"
 ROUTE_PROFILE = "/profile"
+ROUTE_LOGIN = "/login"
+ROUTE_REGISTER = "/register"
 
 # Alt gezinme çubuğundaki sekme sırası (BottomNavBar ile aynı sırada olmalıdır).
 NAV_ROUTES = (ROUTE_EVENTS, ROUTE_TICKETS, ROUTE_PROFILE)
+AUTH_ROUTES = (ROUTE_LOGIN, ROUTE_REGISTER)
+VALID_ROUTES = (*NAV_ROUTES, *AUTH_ROUTES)
 
 DEFAULT_ROUTE = ROUTE_EVENTS
+
+
+def is_auth_route(route: str) -> bool:
+    """Rota kimlik doğrulama ekranlarından biriyse True döndürür."""
+    return route in AUTH_ROUTES
 
 
 def index_for_route(route: str) -> int:
@@ -30,6 +39,6 @@ def route_for_index(index: int) -> str:
 
 def normalize_route(route: str) -> str:
     """Bilinmeyen veya boş rotaları varsayılan rotaya yönlendirir."""
-    if route in NAV_ROUTES:
+    if route in VALID_ROUTES:
         return route
     return DEFAULT_ROUTE

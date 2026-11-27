@@ -54,7 +54,6 @@ def db(app):
 
 
 def approve(db, user_id=1):
-    db.execute("ALTER TABLE users ADD COLUMN organizer_approved BOOLEAN NOT NULL DEFAULT 0")
     db.execute("UPDATE users SET organizer_approved = 1 WHERE id = ?", (user_id,))
     db.commit()
 
@@ -82,8 +81,8 @@ def test_events_table_matches_tg117_schema(db):
         )
 
 
-def test_without_approval_mechanism_access_is_closed(db):
-    """Accounts'ta onay sütunu yokken organizer rolü bile yetki vermez (güvenli varsayılan)."""
+def test_default_unapproved_organizer_access_is_closed(db):
+    """TG-178: Varsayılan onaysız organizer hesabına etkinlik oluşturma yetkisi verilmez."""
     assert is_approved_organizer(1, db) is False
     with pytest.raises(EventPermissionError):
         create_draft_event(db, 1, *ARGS)
@@ -107,7 +106,6 @@ def test_delegates_to_accounts_approval_service_when_available(db, monkeypatch):
 
 
 def test_unapproved_organizer_is_denied(db):
-    db.execute("ALTER TABLE users ADD COLUMN organizer_approved BOOLEAN NOT NULL DEFAULT 0")
     db.commit()
     with pytest.raises(EventPermissionError):
         create_draft_event(db, 1, *ARGS)

@@ -191,11 +191,19 @@ Sahibi team-events. Form: `app/templates/events/create.html` (TG-119). Servis:
 `admin` ve `participant` etkinlik oluşturamaz. `organizer_id` formdan değil oturumdan
 (`g.user_id`) alınır; formdaki `organizer_id` alanı yok sayılır.
 
-> **Açık nokta (Accounts):** Kalıcı organizatör onay mekanizması (`users.organizer_approved`
-> veya Accounts servisi) henüz yoktur. `is_approved_organizer`, `app.accounts.services`
-> içinde aynı adlı bir fonksiyon tanımlıysa ona delege eder; yoksa ve sütun şemada
-> bulunmuyorsa **her zaman `False`** döner (güvenli varsayılan: erişim kapalı). Accounts
-> mekanizmayı eklediğinde Events kodu değişmeden çalışır.
+**Accounts onay sözleşmesi (TG-178 / BR-1.5):**
+
+`app.accounts.services.is_approved_organizer(user_id, db=None) -> bool`,
+veritabanındaki rol `organizer` ve `users.organizer_approved = 1` ise `True` döner.
+Geçersiz/bulunamayan kimlik, farklı rol, onaysız hesap veya onay sütunu olmayan eski
+şema için `False` döner. Veritabanı hataları çağırana iletilir. Events mevcut adaptörü
+üzerinden bu servise delege eder; oluşturma ve yayınlama kontrollerinde aynı bağlantıyı verir.
+
+Servis salt okunurdur. Verilen bağlantıyı kullanır, aksi durumda `get_db()` çağırır;
+çağıranın işlemini commit etmez. Yeni hesaplar ve sütunu yeni eklenen mevcut hesaplar
+`BOOLEAN NOT NULL DEFAULT 0` ile onaysız başlar. Kayıt isteğindeki onay alanı kabul edilmez.
+Mevcut onay değerleri geçişte korunur. `init-db` veya Accounts uyumluluk geçişi eksik
+sütunları kayıtları koruyarak ekler. Geçiş hataları çağırana iletilir.
 
 **Form alanları (`POST /events/create`, `application/x-www-form-urlencoded`):**
 
