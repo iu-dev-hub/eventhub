@@ -40,7 +40,7 @@ Hazırlayan: EventHub Teknoloji, Ürün Ekibi (müşteri)
 
 ## BR-3. Bilet ve kontenjan (team-tickets)
 
-- **BR-3.1** Bir kullanıcı bir etkinlik için en fazla **4** bilet alabilir.
+- **BR-3.1** Bir kullanıcı bir etkinlik için en fazla **2** bilet alabilir.
 - **BR-3.2** Kontenjan dolduğunda bilet satışı durur; kullanıcı bekleme listesine katılabilir.
 - **BR-3.3** Bilet satışı, etkinlik başlangıcından **1 saat** önce kapanır.
 - **BR-3.4** Biletini iptal eden kullanıcının yeri, bekleme listesindeki ilk kişiye teklif edilir.
@@ -99,3 +99,4 @@ salonlar, harita entegrasyonu. Bildirimler yalnızca platform içinde gösterili
 |---|---|---|---|
 | 1.0 | | İlk sürüm | Müşteri açılış toplantısı |
 | 1.1 | 2026-11-06 | BR-1.7, BR-1.8, BR-1.9 eklendi: Detay sayfası, sayfa navigasyonu ve öğrenci doğrulama | team-accounts (Müşteri görüşmesi) |
+| 1.2 | 2026-11-27 | BR-3.1 bilet sınırı ürün ekibi notu doğrultusunda 2 olarak güncellendi | team-mobile / PO onayı (TG-184) |
