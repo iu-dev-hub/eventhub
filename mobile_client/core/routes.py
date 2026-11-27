@@ -18,6 +18,11 @@ VALID_ROUTES = (*NAV_ROUTES, *DETAIL_FLOW_ROUTES)
 DEFAULT_ROUTE = ROUTE_EVENTS
 
 
+def is_auth_route(route: str) -> bool:
+    """Rota kimlik doğrulama ekranlarından biriyse True döndürür."""
+    return route in AUTH_ROUTES
+
+
 def index_for_route(route: str) -> int:
     """Rotaya karşılık gelen sekme sırasını döndürür; bilinmeyen rota için 0."""
     if route in NAV_ROUTES:

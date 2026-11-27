@@ -8,6 +8,7 @@ from mobile_client.views.event_detail_view import (
 from mobile_client.views.events_view import build_events_view
 from mobile_client.views.profile_view import build_profile_view
 from mobile_client.views.tickets_view import build_tickets_view
+from mobile_client.views.auth_view import build_login_view, build_register_view
 
 __all__ = [
     "PLACEHOLDER_TEXT",

@@ -4,13 +4,20 @@ from typing import Callable, Optional
 
 import flet as ft
 
+from mobile_client.core.constants import (
+    TOKEN_STORAGE_KEY,
+    USER_EMAIL_STORAGE_KEY,
+    USER_ID_STORAGE_KEY,
+)
 from mobile_client.core.routes import (
     DEFAULT_ROUTE,
     ROUTE_EVENT_DETAIL,
     ROUTE_EVENTS,
     ROUTE_PAYMENT,
     ROUTE_PROFILE,
+    ROUTE_REGISTER,
     ROUTE_TICKETS,
+    is_auth_route,
     normalize_route,
     route_for_index,
 )
@@ -25,8 +32,10 @@ from mobile_client.views import (
     build_events_view,
     build_payment_view,
     build_profile_view,
+    build_register_view,
     build_tickets_view,
 )
+from mobile_client.views.auth_view import show_toast
 
 
 def build_view_for_route(
@@ -41,6 +50,21 @@ def build_view_for_route(
 ) -> ft.View:
     """Verilen rotaya karşılık gelen sayfa görünümünü oluşturur."""
     normalized = normalize_route(route)
+    if normalized == ROUTE_LOGIN:
+        return build_login_view(
+            auth_service=auth_service,
+            on_login_success=on_login_success,
+            on_navigate=on_navigate,
+            page=page,
+            initial_email=initial_login_email,
+        )
+    if normalized == ROUTE_REGISTER:
+        return build_register_view(
+            auth_service=auth_service,
+            on_register_success=on_register_success,
+            on_navigate=on_navigate,
+            page=page,
+        )
     if normalized == ROUTE_TICKETS:
         return build_tickets_view(on_nav_change=on_nav_change)
     if normalized == ROUTE_PROFILE:
@@ -65,8 +89,8 @@ def build_view_for_route(
     )
 
 
-def main(page: ft.Page) -> None:
-    """Uygulama başlangıcı ve temel ekranlar arası gezinme kurulumu."""
+def main(page: ft.Page, auth_service: Optional[AuthService] = None) -> None:
+    """Uygulama başlangıcı, kimlik doğrulama koruması ve ekranlar arası gezinme."""
     page.title = DEFAULT_THEME.name
     page.bgcolor = DEFAULT_THEME.colors.surface
     participation_service = ParticipationService()
@@ -77,6 +101,12 @@ def main(page: ft.Page) -> None:
 
     def render_route(route: str) -> None:
         normalized = normalize_route(route)
+        # Giriş yapmamış kullanıcı korumalı ekranlara erişmeye çalışırsa Login ekranına yönlendir.
+        if not is_auth_route(normalized) and not service.is_authenticated:
+            normalized = ROUTE_LOGIN
+        elif is_auth_route(normalized) and service.is_authenticated:
+            normalized = DEFAULT_ROUTE
+
         page.route = normalized
         page.views.clear()
         page.views.append(
@@ -105,6 +135,22 @@ def main(page: ft.Page) -> None:
         target_route = route_for_index(index)
         render_route(target_route)
 
+    def handle_login_success(result: AuthResult) -> None:
+        state["prefill_email"] = ""
+        _run_background_task(_save_local_token, result)
+        render_route(DEFAULT_ROUTE)
+
+    def handle_register_success(result: AuthResult) -> None:
+        if result.user:
+            state["prefill_email"] = result.user.email
+        render_route(ROUTE_LOGIN)
+
+    def handle_logout() -> None:
+        service.logout()
+        _run_background_task(_clear_local_token)
+        show_toast(page, "Oturum kapatıldı.", is_error=False)
+        render_route(ROUTE_LOGIN)
+
     def handle_route_change(_: Optional[ft.RouteChangeEvent] = None) -> None:
         render_route(page.route or DEFAULT_ROUTE)
 
@@ -119,7 +165,11 @@ def main(page: ft.Page) -> None:
     page.on_route_change = handle_route_change
     page.on_view_pop = handle_view_pop
 
-    render_route(page.route or DEFAULT_ROUTE)
+    if service.is_authenticated:
+        render_route(page.route or DEFAULT_ROUTE)
+    else:
+        render_route(ROUTE_LOGIN)
+        _run_background_task(_restore_local_session)
 
 
 if __name__ == "__main__":

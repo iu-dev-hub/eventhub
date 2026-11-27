@@ -38,5 +38,26 @@ TIMEOUT_FOR_PAYMENT_RESERVATION = 15  # BR-3.5 (minutes)
 VALID_CARD_LENGTH = 16
 
 
+# Account & authentication constants (BR-1)
+MIN_PASSWORD_LENGTH = 8  # BR-1.3
+MAX_PASSWORD_LENGTH = 20  # BR-1.3
+MAX_FAILED_LOGIN_ATTEMPTS = 5  # BR-1.4
+LOCKOUT_DURATION_MINUTES = 15  # BR-1.4
+DEMO_INVALID_PASSWORD = "1234"  # Demo için hatalı kabul edilen şifre
+MIN_STUDENT_NUMBER_LENGTH = 5
+MAX_STUDENT_NUMBER_LENGTH = 15
+
+# Kayıt ekranında seçilebilen roller (BR-1.1, BR-1.5)
+REGISTER_ROLES = {
+    "participant": USER_ROLES["participant"],
+    "organizer": USER_ROLES["organizer"],
+}
+
+# Lokal token depolama anahtarları
+TOKEN_STORAGE_KEY = "user_token"
+USER_EMAIL_STORAGE_KEY = "current_user_email"
+USER_ID_STORAGE_KEY = "current_user_id"
+
+
 # Event categories (could be extended based on business needs)
 EVENT_CATEGORIES = ["Konferans", "Seminer", "Workshop", "Performans", "Söyleşi", "Fuar", "Kültür"]
