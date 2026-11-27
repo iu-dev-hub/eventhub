@@ -1,8 +1,7 @@
 """Events rotaları entegrasyon testleri (TG-121, PB-08; BR-1.5, BR-2.2, BR-2.3).
 
 Form (TG-119) `venue_id` gönderir; route, TG-118 taslak servisine bağlıdır.
-Accounts'ta kalıcı organizatör onay mekanizması henüz yok: onay sütunu test
-veritabanına eklenir. Sütun yokken erişimin kapalı olduğu da test edilir.
+Onay durumları gerçek kullanıcı şemasında hazırlanır.
 """
 
 import pytest
@@ -53,7 +52,6 @@ def seeded(app):
     """Salon A (kapasite 100) ve farklı rol/onay durumlarında kullanıcılar."""
     with app.app_context():
         db = get_db()
-        db.execute("ALTER TABLE users ADD COLUMN organizer_approved BOOLEAN NOT NULL DEFAULT 0")
         db.execute(
             "INSERT INTO venues (id, name, address, capacity) VALUES (1,'Salon A','Adres',100)"
         )
@@ -193,8 +191,8 @@ def test_stale_session_role_does_not_grant_access(seeded, client):
     assert event_count(seeded) == 0
 
 
-def test_without_approval_mechanism_organizer_is_denied(app, client):
-    """Accounts onay sütunu yokken organizer bile kayıt yapamaz (güvenli varsayılan)."""
+def test_default_unapproved_organizer_is_denied(app, client):
+    """TG-178: Onay alanı verilmeden eklenen organizer etkinlik oluşturamaz."""
     with app.app_context():
         db = get_db()
         db.execute("INSERT INTO venues (id, name, address, capacity) VALUES (1,'Salon A','A',100)")
@@ -225,7 +223,8 @@ def test_draft_is_hidden_from_others_but_visible_to_owner_and_admin(seeded, clie
     assert client.get("/events/1").status_code == 200
 
 
-def test_event_detail_requires_login_and_handles_missing(seeded, client):
-    assert client.get("/events/1").status_code == 401
+def test_event_detail_handles_anonymous_and_missing(seeded, client):
+    """TG-192: Anonim kullanıcı erişemeyeceği/olmayan etkinlikte 404 alır."""
+    assert client.get("/events/1").status_code == 404
     login(client, ORGANIZER, "organizer")
     assert client.get("/events/999").status_code == 404

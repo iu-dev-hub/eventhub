@@ -36,6 +36,12 @@
         <div class="profile-identity">
           <h1>{{ full_name or 'Profilim' }}</h1>
           <p>{{ user.email }}</p>
+          {% if user.role == 'organizer' %}
+            <span class="organizer-approval-status{% if user.organizer_approved %} is-approved{% endif %}">
+              Organizatör onayı
+              <strong>{{ 'Onaylandı' if user.organizer_approved else 'Onay Bekliyor' }}</strong>
+            </span>
+          {% endif %}
           <dl class="profile-student-status">
             <dt>Öğrenci statüsü</dt>
             <dd>

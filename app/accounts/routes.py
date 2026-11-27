@@ -3,24 +3,31 @@
 Provides user registration endpoints supporting both JSON API and form payloads.
 """
 
-from flask import Blueprint, jsonify, render_template, request, session
+import sqlite3
+
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 
 from app.accounts.security import (
     lockout_tracker,
     login_required,
+    organizer_approval_csrf_token,
     role_required,
+    valid_organizer_approval_csrf,
 )
 from app.accounts.services import (
     DuplicateEmailError,
+    approve_organizer,
     authenticate_user,
     change_password,
     create_password_reset_token,
     get_user_by_id,
+    list_pending_organizers,
     register_user,
     reset_password_with_token,
     update_notification_preferences,
     update_user_profile,
 )
+from app.core.db import get_db
 
 bp = Blueprint("accounts", __name__, url_prefix="/accounts")
 
@@ -69,6 +76,8 @@ def register():
     email = data.get("email") if data else None
     password = data.get("password") if data else None
     role = data.get("role", "participant") if data else "participant"
+    if role == "admin":
+        return jsonify({"error": "Herkese açık kayıt ile yönetici hesabı oluşturulamaz."}), 403
     first_name = data.get("first_name") if data else None
     last_name = data.get("last_name") if data else None
     terms_val = data.get("terms_accepted") if data else None
@@ -265,19 +274,71 @@ def admin_status():
     ), 200
 
 
+def _current_admin_access_error():
+    """TG-179: Eski oturum rolünün onay ekranına yetki vermesini engeller."""
+    user = get_user_by_id(session["user_id"])
+    if user is None:
+        session.clear()
+        return jsonify({"error": "Oturum açılmamış."}), 401
+    if user["role"] != "admin":
+        return jsonify({"error": "Bu işlem için yetkiniz bulunmamaktadır."}), 403
+    return None
+
+
+@bp.route("/admin/organizers", methods=["GET"])
+@role_required("admin")
+def admin_organizers():
+    denied = _current_admin_access_error()
+    if denied:
+        return denied
+    return render_template(
+        "accounts/admin_organizers.html",
+        organizers=list_pending_organizers(),
+        csrf_token=organizer_approval_csrf_token(),
+    )
+
+
+@bp.route("/admin/organizers/<int:user_id>/approve", methods=["POST"])
+@role_required("admin")
+def approve_organizer_route(user_id):
+    denied = _current_admin_access_error()
+    if denied:
+        return denied
+    if not valid_organizer_approval_csrf(request.form.get("csrf_token")):
+        return jsonify(
+            {"error": "Güvenlik doğrulaması başarısız. Sayfayı yenileyip tekrar deneyin."}
+        ), 403
+    db = get_db()
+    try:
+        changed = approve_organizer(user_id, session["user_id"])
+        db.commit()
+    except PermissionError as exc:
+        db.rollback()
+        return jsonify({"error": str(exc)}), 403
+    except LookupError as exc:
+        db.rollback()
+        return jsonify({"error": str(exc)}), 404
+    except sqlite3.Error:
+        db.rollback()
+        return jsonify({"error": "Onay kaydedilemedi. Lütfen tekrar deneyin."}), 503
+    flash("Organizatör onaylandı." if changed else "Organizatör zaten onaylı.", "success")
+    return redirect(url_for("accounts.admin_organizers"), code=303)
+
+
 @bp.route("/dashboard", methods=["GET"])
 @login_required
 def dashboard():
     """Temporary accounts welcome dashboard (TG-71, PB-04)."""
     user_id = session.get("user_id")
-    user = get_user_by_id(user_id)
+    wants_html = (
+        request.accept_mimetypes.best_match(["text/html", "application/json"], default="text/html")
+        == "text/html"
+    )
+    user = get_user_by_id(user_id, include_organizer_approval=wants_html)
     if not user:
         session.clear()
         return jsonify({"error": "Kullanıcı bulunamadı."}), 401
-    if (
-        request.accept_mimetypes.best_match(["text/html", "application/json"], default="text/html")
-        == "text/html"
-    ):
+    if wants_html:
         return render_template("accounts/dashboard.html", user=user)
     return jsonify({"user": user, "message": "Hoş geldiniz."}), 200
 
@@ -304,14 +365,15 @@ def guest():
 def profile():
     """User profile screen (TG-72, PB-05)."""
     user_id = session.get("user_id")
-    user = get_user_by_id(user_id)
+    wants_html = (
+        request.accept_mimetypes.best_match(["text/html", "application/json"], default="text/html")
+        == "text/html"
+    )
+    user = get_user_by_id(user_id, include_organizer_approval=wants_html)
     if not user:
         session.clear()
         return jsonify({"error": "Kullanıcı bulunamadı."}), 401
-    if (
-        request.accept_mimetypes.best_match(["text/html", "application/json"], default="text/html")
-        == "text/html"
-    ):
+    if wants_html:
         return render_template("accounts/profile.html", user=user)
     return jsonify({"user": user}), 200
 
